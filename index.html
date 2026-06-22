@@ -278,7 +278,7 @@ nav {
 /* ── VOZES ── */
 .voz-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 6px;
   margin-bottom: 0;
 }
@@ -1086,7 +1086,7 @@ nav {
           <div class="card-body">
 
             <div class="field">
-              <label>Voz e plataforma</label>
+              <label>Rede social</label>
               <div class="voz-grid" id="voz-grid">
                 <!-- preenchido pelo JS com base nas redes do perfil -->
               </div>
@@ -1127,6 +1127,21 @@ nav {
             <div class="field">
               <label>Data de publicação (opcional)</label>
               <input type="date" id="input-data">
+            </div>
+
+            <div class="field">
+              <label>Este post requer aprovação antes de publicar?</label>
+              <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--texto)">
+                  <input type="checkbox" id="toggle-aprovacao" style="width:16px;height:16px;accent-color:var(--verde)" onchange="toggleEmailAprovacao(this)">
+                  Sim, enviar para aprovação
+                </label>
+              </div>
+            </div>
+
+            <div class="field" id="field-email-aprovacao" style="display:none">
+              <label>E-mail de quem vai aprovar</label>
+              <input type="text" id="input-email-aprovacao" placeholder="Ex: diretora@empresa.com.br">
             </div>
 
             <button class="btn btn-primary" id="btn-gerar" onclick="gerarPost()">
@@ -1245,44 +1260,7 @@ nav {
       </div>
     </div>
 
-    <div class="card" style="margin-bottom:1.5rem">
-      <div class="card-header"><div class="card-titulo">Redes sociais ativas</div></div>
-      <div class="card-body">
-        <div class="field">
-          <label>Selecione as redes que serão usadas para gerar posts</label>
-          <div class="redes-check" id="redes-check">
-            <label class="rede-item" id="rede-linkedin">
-              <input type="checkbox" value="linkedin" onchange="toggleRede(this)">
-              💼 LinkedIn
-            </label>
-            <label class="rede-item" id="rede-instagram">
-              <input type="checkbox" value="instagram" onchange="toggleRede(this)">
-              📸 Instagram
-            </label>
-            <label class="rede-item" id="rede-tiktok">
-              <input type="checkbox" value="tiktok" onchange="toggleRede(this)">
-              🎵 TikTok
-            </label>
-            <label class="rede-item" id="rede-facebook">
-              <input type="checkbox" value="facebook" onchange="toggleRede(this)">
-              👥 Facebook
-            </label>
-          </div>
-        </div>
-        <div class="field">
-          <label>Há posts que precisam de aprovação antes de publicar?</label>
-          <select id="p-aprovacao">
-            <option value="nao">Não — todos podem ser publicados diretamente</option>
-            <option value="sim">Sim — todos os posts precisam de aprovação</option>
-            <option value="alguns">Alguns — apenas posts de determinada conta</option>
-          </select>
-        </div>
-        <div class="field" id="field-aprovacao-conta" style="display:none">
-          <label>Qual conta precisa de aprovação?</label>
-          <input type="text" id="p-aprovacao-conta" placeholder="Ex: perfil pessoal do fundador no LinkedIn">
-        </div>
-      </div>
-    </div>
+
 
     <button class="btn btn-primary" onclick="salvarPerfil()" style="max-width:200px">Salvar perfil</button>
     <div class="perfil-salvo" id="perfil-salvo">✓ Perfil salvo com sucesso!</div>
@@ -1333,6 +1311,8 @@ const REDES_CONFIG = {
   instagram: { label: 'Instagram', emoji: '📸', badge: 'badge-instagram', calLabel: 'instagram' },
   tiktok:    { label: 'TikTok',    emoji: '🎵', badge: 'badge-tiktok',    calLabel: 'tiktok' },
   facebook:  { label: 'Facebook',  emoji: '👥', badge: 'badge-linkedin',  calLabel: 'generico' },
+  youtube:   { label: 'YouTube',   emoji: '▶️',  badge: 'badge-tiktok',    calLabel: 'generico' },
+  pinterest: { label: 'Pinterest', emoji: '📌', badge: 'badge-instagram', calLabel: 'generico' },
 };
 
 const TOM_MAP = {
@@ -1377,19 +1357,16 @@ function carregarPerfil() {
   document.getElementById('p-tom').value = perfil.tom || '';
   document.getElementById('p-diferenciais').value = perfil.diferenciais || '';
   document.getElementById('p-aprovacao').value = perfil.aprovacao || 'nao';
-  document.getElementById('p-aprovacao-conta').value = perfil.aprovacaoConta || '';
 
-  (perfil.redes || []).forEach(r => {
-    const cb = document.querySelector(`input[value="${r}"]`);
-    if (cb) { cb.checked = true; document.getElementById(`rede-${r}`).classList.add('checked'); }
-  });
+document.getElementById('nome-empresa-nav').textContent = perfil.nome;
+}
 
-  document.getElementById('nome-empresa-nav').textContent = perfil.nome;
-  if (perfil.aprovacao === 'alguns') document.getElementById('field-aprovacao-conta').style.display = 'block';
+function toggleEmailAprovacao(cb) {
+  document.getElementById('field-email-aprovacao').style.display = cb.checked ? 'block' : 'none';
+  if (!cb.checked) document.getElementById('input-email-aprovacao').value = '';
 }
 
 function salvarPerfil() {
-  const redes = Array.from(document.querySelectorAll('#redes-check input:checked')).map(cb => cb.value);
   perfil = {
     nome: document.getElementById('p-nome').value,
     historia: document.getElementById('p-historia').value,
@@ -1397,9 +1374,7 @@ function salvarPerfil() {
     cliente: document.getElementById('p-cliente').value,
     tom: document.getElementById('p-tom').value,
     diferenciais: document.getElementById('p-diferenciais').value,
-    redes,
     aprovacao: document.getElementById('p-aprovacao').value,
-    aprovacaoConta: document.getElementById('p-aprovacao-conta').value,
   };
   localStorage.setItem('lp_perfil', JSON.stringify(perfil));
 
@@ -1412,14 +1387,8 @@ function salvarPerfil() {
   mostrarToast('Perfil salvo!');
 }
 
-function toggleRede(cb) {
-  const label = document.getElementById(`rede-${cb.value}`);
-  label.classList.toggle('checked', cb.checked);
-}
 
-document.getElementById('p-aprovacao').addEventListener('change', function() {
-  document.getElementById('field-aprovacao-conta').style.display = this.value === 'alguns' ? 'block' : 'none';
-});
+
 
 function verificarPerfil() {
   const aviso = document.getElementById('aviso-perfil');
@@ -1429,17 +1398,14 @@ function verificarPerfil() {
 // ── VOZES ─────────────────────────────────────────────────────────────
 function renderVozes() {
   const grid = document.getElementById('voz-grid');
-  const redes = perfil.redes && perfil.redes.length ? perfil.redes : ['linkedin', 'instagram'];
+  const todasRedes = ['linkedin', 'instagram', 'tiktok', 'facebook', 'youtube', 'pinterest'];
 
   grid.innerHTML = '';
   vozAtual = null;
 
-  redes.forEach((r, i) => {
+  todasRedes.forEach((r, i) => {
     const cfg = REDES_CONFIG[r];
     if (!cfg) return;
-
-    const precisaAprov = perfil.aprovacao === 'sim' ||
-      (perfil.aprovacao === 'alguns' && perfil.aprovacaoConta && r.includes(perfil.aprovacaoConta));
 
     const btn = document.createElement('button');
     btn.className = 'voz-btn' + (i === 0 ? ' selected' : '');
@@ -1447,17 +1413,16 @@ function renderVozes() {
     btn.innerHTML = `
       <span class="voz-nome">${cfg.emoji} ${cfg.label}</span>
       <span class="voz-rede">${perfil.nome || 'Sua empresa'}</span>
-      ${precisaAprov ? '<span class="voz-tag">Requer aprovação</span>' : ''}
     `;
-    btn.onclick = () => selecionarVoz(r, precisaAprov);
+    btn.onclick = () => selecionarVoz(r);
     grid.appendChild(btn);
 
-    if (i === 0) { vozAtual = { rede: r, aprovacao: precisaAprov }; }
+    if (i === 0) { vozAtual = { rede: r, aprovacao: false }; }
   });
 }
 
-function selecionarVoz(rede, aprovacao) {
-  vozAtual = { rede, aprovacao };
+function selecionarVoz(rede) {
+  vozAtual = { rede, aprovacao: document.getElementById("toggle-aprovacao").checked };
   document.querySelectorAll('.voz-btn').forEach(b => b.classList.remove('selected'));
   const btn = document.getElementById('voz-' + rede);
   if (btn) btn.classList.add('selected');
@@ -1568,14 +1533,15 @@ async function gerarPost() {
       status: 'rascunho',
       criadoEm: new Date().toISOString(),
       empresa: perfil.nome,
-      aprovacao: vozAtual?.aprovacao || false,
+      aprovacao: document.getElementById("toggle-aprovacao").checked,
+      emailAprovacao: document.getElementById('input-email-aprovacao').value || '',
     };
 
     document.getElementById('resultado-meta').innerHTML = `<strong>${perfil.nome}</strong> · ${rede} · tom ${TOM_MAP[tom]}`;
     document.getElementById('resultado-texto').textContent = texto;
     document.getElementById('resultado-texto').style.display = 'block';
     document.getElementById('resultado-barra').style.display = 'flex';
-    document.getElementById('btn-aprovacao').style.display = vozAtual?.aprovacao ? 'inline-flex' : 'none';
+    document.getElementById('btn-aprovacao').style.display = document.getElementById('toggle-aprovacao').checked ? 'inline-flex' : 'none';
 
     if (midiaAtual) {
       const inner = document.getElementById('resultado-midia-inner');
