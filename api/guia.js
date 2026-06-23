@@ -9,6 +9,6 @@ module.exports = function handler(req, res) {
     res.setHeader('Content-Disposition', 'inline; filename="Guia_Lumen_Post.pdf"');
     res.status(200).send(file);
   } catch (e) {
-    res.status(404).json({ error: 'Guia não encontrado' });
+    res.status(404).json({ error: 'Guia nao encontrado' });
   }
 };
