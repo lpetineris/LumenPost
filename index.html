@@ -1027,7 +1027,15 @@ let vozAtual = null;
 let postAtual = null;
 let midiaAtual = null;
 // ── SUPABASE ──────────────────────────────────────────────────
-let CURRENT_USER_ID = 'user_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+let try {
+  CURRENT_USER_ID = localStorage.getItem('lp_user_id');
+  if (!CURRENT_USER_ID) {
+    CURRENT_USER_ID = 'user_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+    localStorage.setItem('lp_user_id', CURRENT_USER_ID);
+  }
+} catch(e) {
+  CURRENT_USER_ID = 'user_default';
+}
 
 window.addEventListener('message', function(e) {
   if(e.data && e.data.type === 'set-user-id' && e.data.userId) {
@@ -1042,7 +1050,7 @@ window.addEventListener('load', function() {
   }
 });
 
-async function dbCall(action, table, data) {
+async async function dbCall(action, table, data) {
   try {
     const res = await fetch('https://lumenpost.vercel.app/api/db', {
       method: 'POST',
@@ -1072,6 +1080,14 @@ async function loadFromCloud() {
       carregarCamposPerfil();
       renderVozes();
       verificarPerfil();
+    }
+  } catch(e) {}
+
+  // Load calPosts from perfis_post
+  try {
+    const cp = await dbCall('select_perfil', 'perfis_post', {user_id: CURRENT_USER_ID});
+    if(cp && cp.length > 0 && cp[0].cal_posts) {
+      try { calPosts = JSON.parse(cp[0].cal_posts); } catch(e) { calPosts = {}; }
     }
   } catch(e) {}
 
@@ -1636,7 +1652,12 @@ function adicionarAoCal(chave) {
   if (!post) return;
   if (!calPosts[chave]) calPosts[chave] = [];
   calPosts[chave].push({ redeName: post.redeName, cal: post.cal, midia: post.midia || null, texto: post.texto, empresa: post.empresa });
-  localStorage.setItem('lp_cal', JSON.stringify(calPosts));
+  // Save calPosts to Supabase
+  dbCall('upsert', 'perfis_post', {
+    id: CURRENT_USER_ID,
+    cal_posts: JSON.stringify(calPosts),
+  });
+  try { localStorage.setItem('lp_cal', JSON.stringify(calPosts)); } catch(e) {}
   renderCal();
   mostrarToast('Post adicionado ao calendário!');
 }
