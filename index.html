@@ -1814,29 +1814,20 @@ function baixarGuia() {
   mostrarToast('⚠ Para salvar o guia, use Ctrl+S na nova aba.');
 }
 
-// ── COPIAR COM FALLBACK ───────────────────────────────────────────────
+// ── COPIAR ───────────────────────────────────────────────────────────
 function copiarTextoSeguro(texto) {
-  if (navigator.clipboard && window.isSecureContext) {
-    navigator.clipboard.writeText(texto)
-      .then(() => mostrarToast('Copiado!'))
-      .catch(() => copiarFallback(texto));
-  } else {
-    copiarFallback(texto);
-  }
-}
-
-function copiarFallback(texto) {
+  // Usa execCommand diretamente — mais compatível com políticas restritivas
   var ta = document.createElement('textarea');
   ta.value = texto;
-  ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px';
+  ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0';
   document.body.appendChild(ta);
   ta.focus();
   ta.select();
   try {
-    document.execCommand('copy');
-    mostrarToast('Copiado!');
+    var ok = document.execCommand('copy');
+    mostrarToast(ok ? 'Copiado!' : 'Não foi possível copiar.');
   } catch(e) {
-    mostrarToast('Erro ao copiar. Selecione o texto manualmente.');
+    mostrarToast('Não foi possível copiar.');
   }
   document.body.removeChild(ta);
 }
