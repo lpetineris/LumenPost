@@ -1261,19 +1261,16 @@ function renderVozes() {
 
   Object.entries(REDES).forEach(([key, cfg], i) => {
     const btn = document.createElement('button');
-    btn.className = 'voz-btn' + (i === 0 ? ' on' : '');
+    btn.className = 'voz-btn';
     btn.id = 'voz-' + key;
     btn.innerHTML = `<span class="voz-nome">${cfg.emoji} ${cfg.label}</span><span class="voz-rede">${perfil.nome || 'Sua empresa'}</span>`;
     btn.onclick = () => toggleVoz(key);
     grid.appendChild(btn);
-    if (i === 0) { vozSelecionadas.add(key); vozAtual = key; }
   });
 }
 
 function toggleVoz(key) {
   if (vozSelecionadas.has(key)) {
-    // Não permite desmarcar se só há uma selecionada
-    if (vozSelecionadas.size === 1) return;
     vozSelecionadas.delete(key);
     document.getElementById('voz-' + key).classList.remove('on');
   } else {
@@ -1341,6 +1338,7 @@ async function gerarPost() {
   const tema = document.getElementById('input-tema').value.trim();
   if (!tema) { mostrarToast('Descreva o tema antes de gerar.'); return; }
   if (!perfil.nome) { mostrarToast('Configure o Perfil da Empresa primeiro.'); return; }
+  if (vozSelecionadas.size === 0) { mostrarToast('Selecione pelo menos uma rede social.'); return; }
 
   const tom = document.getElementById('input-tom').value;
   const btn = document.getElementById('btn-gerar');
@@ -1975,6 +1973,10 @@ function limparGerador() {
   document.getElementById('resultado-barra').style.display = 'none';
   document.getElementById('resultado-midia').style.display = 'none';
   postAtual = null;
+  // Reset rede selection — nenhuma selecionada
+  vozSelecionadas = new Set();
+  vozAtual = null;
+  document.querySelectorAll('.voz-btn').forEach(b => b.classList.remove('on'));
   mostrarToast('Gerador limpo.');
 }
 
