@@ -1014,6 +1014,27 @@ main { max-width: 920px; margin: 0 auto; padding: 32px 20px 80px; }
 
 </main>
 
+<!-- Modal Alterar Data -->
+<div class="modal-overlay" id="modal-data-overlay">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-hdr">
+      <h3>Alterar data de publicação</h3>
+      <button class="modal-close" onclick="fecharModalData()">×</button>
+    </div>
+    <div style="padding:20px">
+      <div class="field">
+        <label>Nova data de publicação</label>
+        <input type="date" id="input-nova-data">
+      </div>
+      <p style="font-size:12px;color:var(--text3);margin-top:8px">Deixe em branco para remover do Calendário.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn2" onclick="fecharModalData()">Cancelar</button>
+      <button class="btn" onclick="confirmarAlterarData()">Salvar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal Email Aprovação -->
 <div class="modal-overlay" id="modal-email-overlay">
   <div class="modal" style="max-width:440px">
@@ -1049,6 +1070,7 @@ main { max-width: 920px; margin: 0 auto; padding: 32px 20px 80px; }
     <div class="modal-corpo" id="modal-corpo"></div>
     <div class="modal-footer">
       <button class="btn2" onclick="copiarModal()">Copiar texto</button>
+      <button class="btn2 btn2-sm" id="modal-footer-data-btn" style="display:none" onclick="abrirModalDataDoModal()">📅 Alterar data</button>
       <button class="btnd btn2-sm" id="modal-footer-cal-btn" style="display:none" onclick="excluirDoCalendario()">Excluir post</button>
       <button class="btn2" onclick="fecharModal()">Fechar</button>
     </div>
@@ -1568,6 +1590,7 @@ function renderBanco() {
           <div class="post-footer">
             <button class="btn2 btn2-sm" onclick="verPost(${idx})">Ver completo</button>
             <button class="btn2 btn2-sm" onclick="copiarTexto(${idx})">Copiar</button>
+            <button class="btn2 btn2-sm" onclick="abrirModalData(${idx}, null)">📅 Alterar data</button>
             <button class="btng" onclick="abrirModalEmail(${idx})">✉ Aprovar por email</button>
             ${(p.status==='rascunho'||p.status==='aguardando')?`<button class="btng" onclick="mudarStatus(${idx},'aprovado')">Aprovado ✓</button>`:''}
             ${p.status==='aprovado'?`<button class="btn" style="font-size:11px;padding:5px 12px" onclick="mudarStatus(${idx},'publicado')">Publicado</button>`:''}
@@ -1644,6 +1667,9 @@ function verPost(idx) {
   // Esconder botão excluir do calendário no modal do banco
   const calBtn = document.getElementById('modal-footer-cal-btn');
   if (calBtn) calBtn.style.display = 'none';
+  // Mostrar botão alterar data
+  const dataBtn = document.getElementById('modal-footer-data-btn');
+  if (dataBtn) { dataBtn.style.display = 'inline-flex'; dataBtn._source = 'banco'; }
   const p = bancoPosts[idx];
   document.getElementById('modal-titulo').textContent = `${p.redeName || 'Post'} · ${p.empresa || ''}`;
   document.getElementById('modal-corpo').textContent = p.texto;
@@ -1763,6 +1789,9 @@ function verPostCal(p, chave) {
   // Mostrar botão excluir do calendário
   const footer = document.getElementById('modal-footer-cal-btn');
   if (footer) footer.style.display = 'inline-flex';
+  // Mostrar botão alterar data
+  const dataBtn = document.getElementById('modal-footer-data-btn');
+  if (dataBtn) { dataBtn.style.display = 'inline-flex'; dataBtn._source = 'calendario'; }
 
   // Email do aprovador
   var emailEl = document.getElementById('modal-email');
@@ -1969,6 +1998,60 @@ function enviarEmailAprovacao() {
       mostrarToast('Erro ao enviar email.');
       console.error(e);
     });
+}
+
+// ── ALTERAR DATA ─────────────────────────────────────────────────────
+var _dataPostIdx = null;
+
+function abrirModalData(idx, source) {
+  _dataPostIdx = idx;
+  var post = bancoPosts[idx];
+  document.getElementById('input-nova-data').value = post.data || '';
+  document.getElementById('modal-data-overlay').classList.add('open');
+}
+
+function abrirModalDataDoModal() {
+  // Chamado pelo botão dentro do modal principal (banco ou calendário)
+  var idx = modalPostIdx;
+  if (idx === null || idx === undefined) return;
+  fecharModal();
+  setTimeout(function() { abrirModalData(idx, null); }, 150);
+}
+
+function fecharModalData() {
+  document.getElementById('modal-data-overlay').classList.remove('open');
+  _dataPostIdx = null;
+}
+
+function confirmarAlterarData() {
+  if (_dataPostIdx === null) return;
+  var novaData = document.getElementById('input-nova-data').value;
+  var post = bancoPosts[_dataPostIdx];
+  var dataAntiga = post.data || null;
+
+  // Remover do calendário na data antiga
+  if (dataAntiga) removerPostDoCal(post);
+
+  // Atualizar data no post
+  bancoPosts[_dataPostIdx].data = novaData || '';
+  salvarStorage();
+
+  // Adicionar ao calendário na nova data
+  if (novaData) adicionarPostAoCal(novaData, bancoPosts[_dataPostIdx]);
+
+  // Sync Supabase
+  if (post._cloudId) {
+    dbCall('update', 'posts', {
+      id: post._cloudId,
+      user_id: CURRENT_USER_ID,
+      data_publicacao: novaData || null,
+    });
+  }
+
+  fecharModalData();
+  renderBanco();
+  renderCal();
+  mostrarToast(novaData ? 'Data atualizada para ' + new Date(novaData + 'T12:00:00').toLocaleDateString('pt-BR') : 'Data removida.');
 }
 
 // ── LIMPAR GERADOR ───────────────────────────────────────────────────
