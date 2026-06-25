@@ -758,21 +758,6 @@ main { max-width: 920px; margin: 0 auto; padding: 32px 20px 80px; }
               <input type="date" id="input-data">
             </div>
 
-            <div class="field">
-              <label>Requer aprovação?</label>
-              <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
-                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text)">
-                  <input type="checkbox" id="toggle-aprov" style="width:16px;height:16px;accent-color:var(--g)" onchange="toggleEmailAprov(this)">
-                  Sim, enviar para aprovação
-                </label>
-              </div>
-            </div>
-
-            <div class="field" id="field-email" style="display:none">
-              <label>E-mail do aprovador</label>
-              <input type="text" id="input-email" placeholder="Ex: diretora@empresa.com.br">
-            </div>
-
             <button class="btn btn-full" id="btn-gerar" onclick="gerarPost()">
               ✦ Gerar rascunho
             </button>
@@ -792,7 +777,6 @@ main { max-width: 920px; margin: 0 auto; padding: 32px 20px 80px; }
           <div class="resultado-acoes">
             <button class="btn2 btn2-sm" onclick="copiarPost()">Copiar</button>
             <button class="btn2 btn2-sm" onclick="regenerar()">Regenerar</button>
-            <button class="btng" id="btn-aprov" style="display:none" onclick="marcarAprovacao()">Enviar para aprovação</button>
             <button class="btn" style="font-size:12px;padding:7px 14px" onclick="salvarPost()">Salvar no banco</button>
           </div>
         </div>
@@ -1008,6 +992,29 @@ main { max-width: 920px; margin: 0 auto; padding: 32px 20px 80px; }
   </div>
 
 </main>
+
+<!-- Modal Email Aprovação -->
+<div class="modal-overlay" id="modal-email-overlay">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-hdr">
+      <h3>Enviar para aprovação</h3>
+      <button class="modal-close" onclick="fecharModalEmail()">×</button>
+    </div>
+    <div style="padding:20px">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6">
+        Insira o email de quem vai aprovar. Será enviado o texto do post para revisão.
+      </p>
+      <div class="field">
+        <label>E-mail do aprovador</label>
+        <input type="text" id="email-aprovador-input" placeholder="Ex: diretora@empresa.com.br">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn2" onclick="fecharModalEmail()">Cancelar</button>
+      <button class="btn" onclick="enviarEmailAprovacao()" id="btn-enviar-email">Enviar</button>
+    </div>
+  </div>
+</div>
 
 <!-- Modal -->
 <div class="modal-overlay" id="modal-overlay">
@@ -1283,11 +1290,6 @@ function removerMidia() {
   document.getElementById('input-midia').value = '';
 }
 
-function toggleEmailAprov(cb) {
-  document.getElementById('field-email').style.display = cb.checked ? 'block' : 'none';
-  if (!cb.checked) document.getElementById('input-email').value = '';
-}
-
 // ── GERAR ─────────────────────────────────────────────────────────────
 function buildSystem() {
   const p = perfil;
@@ -1331,9 +1333,6 @@ async function gerarPost() {
   }, 1800);
 
   const r = REDES[vozAtual] || REDES.linkedin;
-  const aprov = document.getElementById('toggle-aprov').checked;
-  const email = document.getElementById('input-email').value || '';
-
   const userPrompt = `Tema: ${tema}\nTom: ${TOM_MAP[tom]}${midiaAtual ? `\nMídia: ${midiaAtual.tipo} "${midiaAtual.nome}" acompanha o post` : ''}\n\nEscreva o post completo.`;
 
   try {
@@ -1360,7 +1359,7 @@ async function gerarPost() {
       midia: midiaAtual ? { ...midiaAtual } : null,
       data: document.getElementById('input-data').value || '',
       status: 'rascunho',
-      aprovacao: aprov, emailAprovacao: email,
+      aprovacao: false, emailAprovacao: '',
       empresa: perfil.nome,
       criadoEm: new Date().toISOString(),
     };
@@ -1520,6 +1519,7 @@ function renderBanco() {
           <div class="post-footer">
             <button class="btn2 btn2-sm" onclick="verPost(${idx})">Ver completo</button>
             <button class="btn2 btn2-sm" onclick="copiarTexto(${idx})">Copiar</button>
+            <button class="btng" onclick="abrirModalEmail(${idx})">✉ Aprovar por email</button>
             ${(p.status==='rascunho'||p.status==='aguardando')?`<button class="btng" onclick="mudarStatus(${idx},'aprovado')">Aprovado ✓</button>`:''}
             ${p.status==='aprovado'?`<button class="btn" style="font-size:11px;padding:5px 12px" onclick="mudarStatus(${idx},'publicado')">Publicado</button>`:''}
             <button class="btnd" onclick="excluirPost(${idx})">Excluir</button>
@@ -1851,14 +1851,82 @@ function copiarTextoSeguro(texto) {
   document.body.removeChild(ta);
 }
 
+// ── MODAL EMAIL APROVAÇÃO ────────────────────────────────────────────
+var _emailPostIdx = null;
+
+function abrirModalEmail(idx) {
+  _emailPostIdx = idx;
+  var post = bancoPosts[idx];
+  // Preencher email salvo se houver
+  document.getElementById('email-aprovador-input').value = post.emailAprovacao || '';
+  document.getElementById('modal-email-overlay').classList.add('open');
+}
+
+function fecharModalEmail() {
+  document.getElementById('modal-email-overlay').classList.remove('open');
+  _emailPostIdx = null;
+}
+
+function enviarEmailAprovacao() {
+  if (_emailPostIdx === null) return;
+  var post = bancoPosts[_emailPostIdx];
+  var email = document.getElementById('email-aprovador-input').value.trim();
+  if (!email) { mostrarToast('Insira um email válido.'); return; }
+
+  var btn = document.getElementById('btn-enviar-email');
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
+
+  // Salvar email no post
+  bancoPosts[_emailPostIdx].emailAprovacao = email;
+  bancoPosts[_emailPostIdx].status = 'aguardando';
+  salvarStorage();
+
+  // Atualizar status no Supabase
+  if (post._cloudId) {
+    dbCall('update', 'posts', {
+      id: post._cloudId,
+      user_id: CURRENT_USER_ID,
+      status: 'aguardando'
+    });
+  }
+
+  // Enviar email via Resend
+  fetch('/api/email', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      para: email,
+      empresa: perfil.nome || '',
+      rede: post.redeName || '',
+      texto: post.texto || '',
+    })
+  }).then(function(r) { return r.json(); })
+    .then(function(r) {
+      btn.disabled = false;
+      btn.textContent = 'Enviar';
+      if (r.success) {
+        fecharModalEmail();
+        renderBanco();
+        mostrarToast('Email de aprovação enviado para ' + email);
+      } else {
+        mostrarToast('Erro ao enviar email. Tente novamente.');
+        console.error('Resend error:', r);
+      }
+    })
+    .catch(function(e) {
+      btn.disabled = false;
+      btn.textContent = 'Enviar';
+      mostrarToast('Erro ao enviar email.');
+      console.error(e);
+    });
+}
+
 // ── LIMPAR GERADOR ───────────────────────────────────────────────────
 function limparGerador() {
   document.getElementById('input-tema').value = '';
   document.getElementById('input-tom').value = 'autoridade';
   document.getElementById('input-data').value = '';
-  document.getElementById('toggle-aprov').checked = false;
-  document.getElementById('input-email').value = '';
-  document.getElementById('field-email').style.display = 'none';
   removerMidia();
   // Reset resultado
   document.getElementById('resultado-vazio').style.display = 'flex';
