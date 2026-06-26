@@ -1393,16 +1393,42 @@ async function gerarPost() {
   }, 1800);
 
   const r = REDES[vozAtual] || REDES.linkedin;
-  const userPrompt = `Tema: ${tema}\nTom: ${TOM_MAP[tom]}${midiaAtual ? `\nMídia: ${midiaAtual.tipo} "${midiaAtual.nome}" acompanha o post` : ''}\n\nEscreva o post completo.`;
+  const userPrompt = midiaAtual && midiaAtual.tipo === 'imagem'
+    ? `Analise a imagem acima e use-a como base para o post.\n\nTema adicional: ${tema}\nTom: ${TOM_MAP[tom]}\n\nEscreva o post completo.`
+    : `Tema: ${tema}\nTom: ${TOM_MAP[tom]}${midiaAtual && midiaAtual.tipo === 'video' ? '\n(Um vídeo acompanha este post)' : ''}\n\nEscreva o post completo.`;
 
   try {
+    // Build message content — include image if available
+    var msgContent;
+    if (midiaAtual && midiaAtual.tipo === 'imagem' && midiaAtual.dataUrl) {
+      // Extract base64 data and media type from dataUrl
+      var matches = midiaAtual.dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+      if (matches) {
+        msgContent = [
+          {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: matches[1],
+              data: matches[2]
+            }
+          },
+          { type: 'text', text: userPrompt }
+        ];
+      } else {
+        msgContent = userPrompt;
+      }
+    } else {
+      msgContent = userPrompt;
+    }
+
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         system: buildSystem(),
         max_tokens: 1000,
-        messages: [{ role: 'user', content: userPrompt }]
+        messages: [{ role: 'user', content: msgContent }]
       })
     });
 
