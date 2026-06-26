@@ -395,7 +395,7 @@ main { max-width: 920px; margin: 0 auto; padding: 32px 20px 80px; }
   gap: 12px; padding: 40px; text-align: center; color: var(--text3);
   min-height: 300px;
 }
-.resultado-vazio.hidden { display: none !important; }
+.resultado-vazio.hidden { display: none !important; height: 0 !important; min-height: 0 !important; padding: 0 !important; overflow: hidden !important; }
 .resultado-vazio .ico { font-size: 2.5rem; opacity: .25; }
 .resultado-vazio p { font-size: 13px; line-height: 1.65; }
 .resultado-vazio em { color: var(--g-mid); font-style: normal; font-weight: 600; }
@@ -801,7 +801,7 @@ main { max-width: 920px; margin: 0 auto; padding: 32px 20px 80px; }
           </div>
         </div>
 
-        <div class="resultado-vazio" id="resultado-vazio" style="display:flex">
+        <div class="resultado-vazio" id="resultado-vazio">
           <div class="ico">✦</div>
           <p>Configure o post ao lado<br>e clique em <em>Gerar rascunho</em>.</p>
         </div>
