@@ -484,6 +484,16 @@ main { max-width: 920px; margin: 0 auto; padding: 32px 20px 80px; }
 
 /* ── BANCO ── */
 .filtros { display: flex; gap: 6px; margin-bottom: 20px; flex-wrap: wrap; }
+
+#filtros-rede {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+}
+#filtros-rede::-webkit-scrollbar { height: 4px; }
+#filtros-rede::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+#filtros-rede .filtro { flex-shrink: 0; }
 .filtro {
   font-family: 'Poppins', sans-serif; font-size: 12px; font-weight: 500;
   padding: 5px 14px; border-radius: 20px;
@@ -906,6 +916,15 @@ main { max-width: 920px; margin: 0 auto; padding: 32px 20px 80px; }
       <button class="filtro" onclick="filtrar('aguardando', this)">Aguardando aprovação</button>
       <button class="filtro" onclick="filtrar('aprovado', this)">Aprovado</button>
       <button class="filtro" onclick="filtrar('publicado', this)">Publicado</button>
+    </div>
+    <div class="filtros" id="filtros-rede" style="margin-top:-8px">
+      <button class="filtro on" data-rede="todas" onclick="filtrarRede('todas', this)">Todas as redes</button>
+      <button class="filtro" data-rede="linkedin" onclick="filtrarRede('linkedin', this)">💼 LinkedIn</button>
+      <button class="filtro" data-rede="instagram" onclick="filtrarRede('instagram', this)">📸 Instagram</button>
+      <button class="filtro" data-rede="tiktok" onclick="filtrarRede('tiktok', this)">🎵 TikTok</button>
+      <button class="filtro" data-rede="facebook" onclick="filtrarRede('facebook', this)">👥 Facebook</button>
+      <button class="filtro" data-rede="youtube" onclick="filtrarRede('youtube', this)">▶️ YouTube</button>
+      <button class="filtro" data-rede="pinterest" onclick="filtrarRede('pinterest', this)">📌 Pinterest</button>
     </div>
     <div id="banco-lista"></div>
   </div>
@@ -2002,10 +2021,13 @@ function marcarAprovacao() {
 // ── BANCO ─────────────────────────────────────────────────────────────
 function renderBanco() {
   const lista = document.getElementById('banco-lista');
-  const filtrados = filtroAtual === 'todos' ? bancoPosts : bancoPosts.filter(p => p.status === filtroAtual);
+  let filtrados = filtroAtual === 'todos' ? bancoPosts : bancoPosts.filter(p => p.status === filtroAtual);
+  if (filtroRedeAtual !== 'todas') {
+    filtrados = filtrados.filter(p => p.rede === filtroRedeAtual);
+  }
 
   if (!filtrados.length) {
-    lista.innerHTML = `<div class="vazio"><div class="ico">✦</div><p>Nenhum post ${filtroAtual !== 'todos' ? 'com este status' : 'salvo ainda'}.<br>Gere um rascunho e salve no banco.</p></div>`;
+    lista.innerHTML = `<div class="vazio"><div class="ico">✦</div><p>Nenhum post encontrado com os filtros selecionados.<br>Gere um rascunho e salve no banco.</p></div>`;
     return;
   }
 
@@ -2053,7 +2075,15 @@ function renderBanco() {
 
 function filtrar(s, btn) {
   filtroAtual = s;
-  document.querySelectorAll('.filtro').forEach(b => b.classList.remove('on'));
+  document.querySelectorAll('.filtros:not(#filtros-rede) .filtro').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  renderBanco();
+}
+
+let filtroRedeAtual = 'todas';
+function filtrarRede(rede, btn) {
+  filtroRedeAtual = rede;
+  document.querySelectorAll('#filtros-rede .filtro').forEach(b => b.classList.remove('on'));
   btn.classList.add('on');
   renderBanco();
 }
