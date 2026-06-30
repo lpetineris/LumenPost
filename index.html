@@ -610,6 +610,10 @@ main { max-width: 920px; margin: 0 auto; padding: 32px 20px 80px; }
 .cal-dia.outro-mes { background: #FAFAF8; opacity: .4; }
 .cal-dia.hoje { border-color: var(--g); border-width: 2px; }
 
+/* Modo edição de programação — destaca dias clicáveis */
+.cal-dia.modo-edicao { cursor: pointer; }
+.cal-dia.modo-edicao:hover { border-color: var(--g); box-shadow: 0 0 0 2px var(--g-l); background: var(--g-l); }
+
 .cal-num { font-size: 11px; font-weight: 500; color: var(--text3); margin-bottom: 4px; }
 .cal-dia.hoje .cal-num { color: var(--g); font-weight: 700; }
 
@@ -963,6 +967,7 @@ main { max-width: 920px; margin: 0 auto; padding: 32px 20px 80px; }
       <div id="programacao-ativa-info" style="font-size:12px;color:var(--text3)"></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <select id="select-programacao" onchange="trocarProgramacaoAtiva(this.value)" style="font-family:'Poppins',sans-serif;font-size:12px;padding:7px 10px;border-radius:var(--rs);border:1.5px solid var(--border);background:var(--bg);color:var(--text);display:none"></select>
+        <button class="btn2 btn2-sm" id="btn-editar-programacao" onclick="toggleModoEdicaoPrograacao()" style="display:none">✎ Editar programação</button>
         <button class="btnd btn2-sm" id="btn-excluir-programacao" onclick="excluirProgramacaoAtiva()" style="display:none">🗑 Excluir</button>
         <button class="btn2 btn2-sm" onclick="abrirModalProgramacao()">✦ Criar programação com IA</button>
       </div>
@@ -1389,6 +1394,7 @@ let perfil = {};
 // Lista de programações salvas. Cada uma: { id, nome, espacos: { 'YYYY-MM-DD': ['linkedin','instagram'] } }
 let programacoes = [];
 let programacaoAtivaId = null;
+let modoEdicaoProgramacao = false;
 
 const ID_PROGRAMACAO_FIXA = 'prog_posts_gerais';
 
@@ -1420,6 +1426,32 @@ function registrarEmProgramacaoFixa(data, rede) {
     fixa.espacos[data].push(rede);
     salvarProgramacoes();
   }
+}
+
+// Registra um espaço numa programação específica (usado pelo modo edição).
+function registrarEmProgramacao(progId, data, rede) {
+  if (!data || !rede) return;
+  const prog = programacoes.find(p => p.id === progId);
+  if (!prog) return;
+  if (!prog.espacos) prog.espacos = {};
+  if (!prog.espacos[data]) prog.espacos[data] = [];
+  if (!prog.espacos[data].includes(rede)) {
+    prog.espacos[data].push(rede);
+    salvarProgramacoes();
+  }
+}
+
+// Decide onde registrar um post recém-salvo: se o modo edição está ativo
+// e há uma programação ativa, registra nela; senão usa a lógica padrão
+// (registra na fixa "Posts gerais" se não pertencer a nenhuma programação).
+function registrarPostNaProgramacaoCorreta(data, rede) {
+  if (!data || !rede) return;
+  if (modoEdicaoProgramacao && programacaoAtivaId) {
+    registrarEmProgramacao(programacaoAtivaId, data, rede);
+    return;
+  }
+  const pertenceAProgramacao = programacoes.some(p => p.espacos && p.espacos[data] && p.espacos[data].includes(rede));
+  if (!pertenceAProgramacao) registrarEmProgramacaoFixa(data, rede);
 }
 
 function salvarProgramacoes() {
@@ -1983,9 +2015,7 @@ function salvarAba(key) {
   bancoPosts.unshift(post);
   if (post.data) {
     adicionarPostAoCal(post.data, post);
-    // Se este espaço não pertence a nenhuma programação, registra na fixa "Posts gerais"
-    const pertenceAProgramacao = programacoes.some(p => p.espacos && p.espacos[post.data] && p.espacos[post.data].includes(key));
-    if (!pertenceAProgramacao) registrarEmProgramacaoFixa(post.data, key);
+    registrarPostNaProgramacaoCorreta(post.data, key);
   }
 
   var midiaStr = null;
@@ -2062,11 +2092,7 @@ function salvarPost() {
   bancoPosts.unshift(post);
   if (post.data) {
     adicionarPostAoCal(post.data, post);
-    // Se este espaço não pertence a nenhuma programação, registra na fixa "Posts gerais"
-    var pertenceAProgramacao = programacoes.some(function(p) {
-      return p.espacos && p.espacos[post.data] && p.espacos[post.data].includes(key);
-    });
-    if (!pertenceAProgramacao) registrarEmProgramacaoFixa(post.data, key);
+    registrarPostNaProgramacaoCorreta(post.data, key);
   }
   // Save to Supabase
   var midiaStr = null;
@@ -2386,12 +2412,25 @@ function renderCal() {
     if (d === hoje.getDate() && mesAtual === hoje.getMonth() && anoAtual === hoje.getFullYear())
       el.classList.add('hoje');
 
+    const chave = `${anoAtual}-${String(mesAtual+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+
+    // Modo edição de programação ativo — todo o dia fica clicável
+    if (modoEdicaoProgramacao) {
+      el.classList.add('modo-edicao');
+      el.title = 'Clique para criar um post nesta data';
+      el.onclick = (ev) => {
+        // Evita conflito se o clique foi em um item específico (post ou espaço) dentro do dia
+        if (ev.target === el || ev.target.classList.contains('cal-num')) {
+          adicionarPostNaoPlanejado(chave);
+        }
+      };
+    }
+
     const num = document.createElement('div');
     num.className = 'cal-num';
     num.textContent = d;
     el.appendChild(num);
 
-    const chave = `${anoAtual}-${String(mesAtual+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     (calPosts[chave] || []).forEach(p => {
       const item = document.createElement('div');
       item.className = 'cal-post-item';
@@ -2612,11 +2651,13 @@ function atualizarSeletorProgramacao() {
   const sel = document.getElementById('select-programacao');
   const info = document.getElementById('programacao-ativa-info');
   const btnExcluir = document.getElementById('btn-excluir-programacao');
+  const btnEditar = document.getElementById('btn-editar-programacao');
   if (!sel || !info) return;
 
   if (programacoes.length === 0) {
     sel.style.display = 'none';
     if (btnExcluir) btnExcluir.style.display = 'none';
+    if (btnEditar) btnEditar.style.display = 'none';
     info.textContent = 'Nenhuma programação ativa.';
     return;
   }
@@ -2631,6 +2672,11 @@ function atualizarSeletorProgramacao() {
   // Botão excluir: oculto quando a programação ativa é a fixa
   if (btnExcluir) {
     btnExcluir.style.display = (ativa && ativa.fixa) ? 'none' : 'inline-flex';
+  }
+
+  // Botão editar: visível sempre que há programação ativa
+  if (btnEditar) {
+    btnEditar.style.display = ativa ? 'inline-flex' : 'none';
   }
 
   if (ativa) {
@@ -2787,6 +2833,34 @@ function preencherEspacoProgramacao(data, redeKey) {
     document.getElementById('input-data').value = data;
     document.getElementById('input-tema').focus();
     mostrarToast(`Espaço de ${REDES[redeKey].label} em ${new Date(data+'T12:00:00').toLocaleDateString('pt-BR')} selecionado. Descreva o tema e gere o post!`);
+  }, 150);
+}
+
+// Ativa/desativa o modo de edição da programação — enquanto ativo,
+// qualquer dia do calendário (mesmo sem espaço pré-definido) fica clicável
+// para criar um post não planejado naquela data.
+function toggleModoEdicaoPrograacao() {
+  modoEdicaoProgramacao = !modoEdicaoProgramacao;
+  const btn = document.getElementById('btn-editar-programacao');
+  if (btn) {
+    btn.textContent = modoEdicaoProgramacao ? '✓ Concluir edição' : '✎ Editar programação';
+    btn.classList.toggle('btng', modoEdicaoProgramacao);
+  }
+  if (modoEdicaoProgramacao) {
+    mostrarToast('Modo edição ativo — clique em qualquer data para criar um post.');
+  }
+  renderCal();
+}
+
+// Chamado ao clicar numa data qualquer durante o modo edição — leva ao
+// Gerador com a data travada, mas sem rede pré-selecionada (usuário escolhe).
+function adicionarPostNaoPlanejado(data) {
+  goTab('gerar');
+  setTimeout(() => {
+    limparGeradorSilencioso();
+    document.getElementById('input-data').value = data;
+    document.getElementById('input-tema').focus();
+    mostrarToast(`Data ${new Date(data+'T12:00:00').toLocaleDateString('pt-BR')} selecionada. Escolha a rede, descreva o tema e gere o post!`);
   }, 150);
 }
 
