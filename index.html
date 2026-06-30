@@ -1477,16 +1477,21 @@ function registrarEmProgramacaoFixa(data, rede) {
   adicionarEspacoNaProgramacao(ID_PROGRAMACAO_FIXA, data, rede);
 }
 
-// Decide onde registrar um post recém-salvo: se ele veio de um espaço
-// específico (passamos o ID), apenas remove aquele espaço (o post real
-// toma o lugar dele). Caso contrário, registra como novo espaço já
-// preenchido na fixa "Posts gerais".
+// Decide onde registrar um post recém-salvo. Se ele veio de um espaço já
+// existente na programação de contexto, não precisa criar nada (o espaço
+// vazio já "vira" o post real automaticamente, pela lógica de contagem em
+// renderCal). Caso contrário — post criado livremente, sem espaço prévio —
+// cria um novo espaço já preenchido na programação de contexto (ou na fixa).
 function registrarPostNaProgramacaoCorreta(data, rede) {
   if (!data || !rede) return;
-  const pertenceAProgramacao = programacoes.some(p =>
-    p.espacos && p.espacos[data] && p.espacos[data].some(e => e.rede === rede)
-  );
-  if (!pertenceAProgramacao) registrarEmProgramacaoFixa(data, rede);
+  const progId = programacaoContextoAtual || ID_PROGRAMACAO_FIXA;
+  const prog = programacoes.find(p => p.id === progId);
+  const jaTemEspacoNelaMesma = prog && prog.espacos && prog.espacos[data] &&
+    prog.espacos[data].some(e => e.rede === rede);
+  if (!jaTemEspacoNelaMesma) {
+    garantirProgramacaoFixa();
+    adicionarEspacoNaProgramacao(progId, data, rede);
+  }
 }
 
 function salvarProgramacoes() {
@@ -2044,6 +2049,7 @@ function salvarAba(key) {
     data: dataAtual, status: 'rascunho',
     aprovacao: false, emailAprovacao: '',
     empresa: perfil.nome,
+    programacaoId: programacaoContextoAtual || ID_PROGRAMACAO_FIXA,
     id: Date.now() + Math.random(),
     criadoEm: new Date().toISOString(),
   };
@@ -2122,6 +2128,7 @@ function salvarPost() {
     badge: r.badge,
     cal: r.cal,
     data: dataAtual,
+    programacaoId: programacaoContextoAtual || ID_PROGRAMACAO_FIXA,
     id: Date.now() + Math.random(),
     criadoEm: new Date().toISOString()
   };
@@ -2467,7 +2474,14 @@ function renderCal() {
     num.textContent = d;
     el.appendChild(num);
 
-    (calPosts[chave] || []).forEach(p => {
+    // Mostra apenas os posts reais que pertencem à programação ativa.
+    // Posts antigos sem programacaoId (de antes desta funcionalidade) são
+    // tratados como pertencentes à fixa "Posts gerais".
+    const postsDoDataFiltrados = (calPosts[chave] || []).filter(p =>
+      (p.programacaoId || ID_PROGRAMACAO_FIXA) === programacaoAtivaId
+    );
+
+    postsDoDataFiltrados.forEach(p => {
       const item = document.createElement('div');
       item.className = 'cal-post-item';
       item.onclick = () => verPostCal(p, chave);
@@ -2495,11 +2509,11 @@ function renderCal() {
 
     // Espaços vazios da programação ativa — mostra apenas os que ainda não têm post real correspondente.
     // Como pode haver múltiplos espaços da mesma rede no mesmo dia, comparamos por contagem:
-    // se há 2 espaços de Instagram e 1 post real de Instagram, mostra 1 espaço vazio.
+    // se há 2 espaços de Instagram e 1 post real de Instagram (já filtrado pela programação), mostra 1 espaço vazio.
     const prog = getProgramacaoAtiva();
     if (prog && prog.espacos && prog.espacos[chave]) {
       const contagemPreenchidos = {};
-      (calPosts[chave] || []).forEach(p => {
+      postsDoDataFiltrados.forEach(p => {
         const entry = Object.entries(REDES).find(([k,v]) => v.label === p.redeName);
         const k = entry ? entry[0] : null;
         if (k) contagemPreenchidos[k] = (contagemPreenchidos[k] || 0) + 1;
@@ -2867,6 +2881,11 @@ Use apenas estas chaves de rede: ${redesEscolhidas.join(', ')}. Todas as datas d
 
 // Chamado ao clicar num espaço vazio do calendário — abre o gerador
 // já configurado com a rede e a data daquele espaço.
+// Programação à qual o post sendo criado no Gerador pertence.
+// Definida ao clicar num espaço (preencherEspacoProgramacao) — caso o usuário
+// gere livremente sem vir de um espaço, assume a programação "Posts gerais".
+let programacaoContextoAtual = null;
+
 function preencherEspacoProgramacao(data, redeKey) {
   goTab('gerar');
   setTimeout(() => {
@@ -2881,6 +2900,7 @@ function preencherEspacoProgramacao(data, redeKey) {
     });
     document.getElementById('input-data').value = data;
     document.getElementById('input-tema').focus();
+    programacaoContextoAtual = programacaoAtivaId; // o espaço pertence à programação que estava ativa
     mostrarToast(`Espaço de ${REDES[redeKey].label} em ${new Date(data+'T12:00:00').toLocaleDateString('pt-BR')} selecionado. Descreva o tema e gere o post!`);
   }, 150);
 }
@@ -3160,6 +3180,7 @@ function limparGeradorSilencioso() {
   vozSelecionadas = new Set();
   vozAtual = null;
   document.querySelectorAll('.voz-btn').forEach(b => b.classList.remove('on'));
+  programacaoContextoAtual = null; // será reatribuído por preencherEspacoProgramacao se vier de um espaço
 }
 
 function limparGerador() {
