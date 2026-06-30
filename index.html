@@ -384,6 +384,73 @@ main { max-width: 920px; margin: 0 auto; padding: 32px 20px 80px; }
   padding: 3px 8px; border-radius: 4px; letter-spacing: .06em;
 }
 
+/* ── ABAS DE RESULTADO (multi-rede) ── */
+.resultado-abas {
+  display: none;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg2);
+  overflow-x: auto;
+}
+.aba-btn {
+  padding: 10px 18px;
+  border: none;
+  background: transparent;
+  font-family: 'Poppins', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text3);
+  cursor: pointer;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+  transition: all .15s;
+}
+.aba-btn:hover { color: var(--text); }
+.aba-btn.on {
+  color: var(--g);
+  border-bottom-color: var(--g);
+  background: var(--bg);
+}
+.aba-btn .aba-status {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--ok);
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.aba-painel { display: none; }
+.aba-painel.on { display: block; }
+
+.aba-acoes {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg2);
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+}
+.aba-acoes-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.aba-texto {
+  padding: 24px;
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--text);
+  white-space: pre-wrap;
+  min-height: 160px;
+}
+.aba-texto[contenteditable="true"] {
+  outline: none;
+  border: 1.5px dashed var(--g-c);
+  background: var(--g-l);
+  border-radius: var(--rs);
+  margin: 12px;
+  padding: 16px;
+}
+
 .resultado-texto {
   padding: 24px;
   font-size: 14px; line-height: 1.8;
@@ -780,7 +847,7 @@ main { max-width: 920px; margin: 0 auto; padding: 32px 20px 80px; }
             </div>
 
             <button class="btn btn-full" id="btn-gerar" onclick="gerarPost()">
-              ✦ Gerar rascunho
+              ✦ Gerar
             </button>
 
             <button class="btn2 btn-full" style="margin-top:8px" onclick="limparGerador()">
@@ -804,7 +871,7 @@ main { max-width: 920px; margin: 0 auto; padding: 32px 20px 80px; }
 
         <div class="resultado-vazio" id="resultado-vazio">
           <div class="ico">✦</div>
-          <p>Configure o post ao lado<br>e clique em <em>Gerar rascunho</em>.</p>
+          <p>Configure o post ao lado<br>e clique em <em>Gerar</em>.</p>
         </div>
 
         <div class="loading" id="loading">
@@ -816,6 +883,10 @@ main { max-width: 920px; margin: 0 auto; padding: 32px 20px 80px; }
           <div id="resultado-midia-inner"></div>
           <span class="midia-tipo" id="midia-tipo"></span>
         </div>
+
+        <!-- Abas — só aparecem quando há 2+ redes geradas -->
+        <div class="resultado-abas" id="resultado-abas"></div>
+        <div id="resultado-abas-paineis"></div>
 
         <div class="resultado-texto" id="resultado-texto"></div>
       </div>
@@ -1421,7 +1492,6 @@ function removerMidia() {
 }
 
 // ── GERAR ─────────────────────────────────────────────────────────────
-let _tentativaRegenerar = false;
 
 // Detecta se o texto gerado contém meta-comentários (a IA falando sobre
 // seu processo/limitações em vez de entregar o post final).
@@ -1507,6 +1577,10 @@ PREÇOS E PLANOS LUMEN:
 Se perguntada sobre preços ou planos do Lumen Post ou Lumen Labs, responda: "Para informações sobre planos e preços, acesse o site da Lumen Labs ou entre em contato com nossa equipe."`;
 }
 
+// Estado dos resultados gerados por rede: { linkedin: {texto, status}, instagram: {...} }
+let resultadosPorRede = {};
+let abaAtiva = null;
+
 async function gerarPost() {
   const tema = document.getElementById('input-tema').value.trim();
   if (!tema) { mostrarToast('Descreva o tema antes de gerar.'); return; }
@@ -1521,6 +1595,8 @@ async function gerarPost() {
   document.getElementById('resultado-texto').style.display = 'none';
   document.getElementById('resultado-barra').style.display = 'none';
   document.getElementById('resultado-midia').style.display = 'none';
+  document.getElementById('resultado-abas').style.display = 'none';
+  document.getElementById('resultado-abas-paineis').innerHTML = '';
   document.getElementById('loading').style.display = 'flex';
 
   const msgs = ['Gerando rascunho...', 'Ajustando o tom da marca...', 'Finalizando o post...'];
@@ -1530,89 +1606,34 @@ async function gerarPost() {
     mi++;
   }, 1800);
 
-  const r = REDES[vozAtual] || REDES.linkedin;
-  const usarImagem = midiaAtual && midiaAtual.tipo === 'imagem' && !_tentativaRegenerar;
-  const userPrompt = usarImagem
-    ? `Use a imagem acima apenas como inspiração visual de cores, cenário e atmosfera — sem identificar ou descrever pessoas. Tema do post: ${tema}\nTom: ${TOM_MAP[tom]}\n\nEscreva o post completo, pronto para publicação.`
-    : `Tema: ${tema}\nTom: ${TOM_MAP[tom]}${midiaAtual && midiaAtual.tipo === 'video' ? '\n(Um vídeo acompanha este post)' : ''}\n\nEscreva o post completo, pronto para publicação.`;
+  const redesSelecionadas = Array.from(vozSelecionadas);
+  resultadosPorRede = {};
 
   try {
-    // Build message content — include image only if not a retry attempt
-    var msgContent;
-    if (usarImagem && midiaAtual.dataUrl) {
-      // Extract base64 data and media type from dataUrl
-      var matches = midiaAtual.dataUrl.match(/^data:([^;]+);base64,(.+)$/);
-      if (matches) {
-        msgContent = [
-          {
-            type: 'image',
-            source: {
-              type: 'base64',
-              media_type: matches[1],
-              data: matches[2]
-            }
-          },
-          { type: 'text', text: userPrompt }
-        ];
-      } else {
-        msgContent = userPrompt;
-      }
-    } else {
-      msgContent = userPrompt;
-    }
-
-    const res = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        system: buildSystem(),
-        max_tokens: 1000,
-        messages: [{ role: 'user', content: msgContent }]
-      })
-    });
-
-    const data = await res.json();
-    const texto = data.content?.map(b => b.text || '').join('') || '';
+    // Gera um post para cada rede selecionada, em paralelo
+    const promessas = redesSelecionadas.map(key => gerarParaRede(key, tema, tom, false));
+    const resultados = await Promise.all(promessas);
 
     clearInterval(interval);
     document.getElementById('loading').style.display = 'none';
-    if (!texto) throw new Error('vazio');
 
-    // Validação: detecta meta-comentários (a IA falando sobre seu próprio processo
-    // em vez de gerar o post final). Se detectado, tenta regenerar automaticamente uma vez.
-    if (contemMetaComentario(texto)) {
-      if (!_tentativaRegenerar) {
-        _tentativaRegenerar = true;
-        document.getElementById('loading').style.display = 'flex';
-        document.getElementById('loading-msg').textContent = 'Ajustando o resultado...';
-        btn.disabled = false;
-        return gerarPost();
-      } else {
-        _tentativaRegenerar = false;
-        document.getElementById('resultado-vazio').classList.remove('hidden');
-        document.getElementById('resultado-vazio').style.display = 'flex';
-        mostrarToast('Não foi possível gerar o post. Tente descrever o tema com mais detalhes.');
-        btn.disabled = false;
-        return;
+    let algumSucesso = false;
+    redesSelecionadas.forEach((key, i) => {
+      if (resultados[i]) {
+        resultadosPorRede[key] = resultados[i];
+        algumSucesso = true;
       }
+    });
+
+    if (!algumSucesso) {
+      document.getElementById('resultado-vazio').classList.remove('hidden');
+      document.getElementById('resultado-vazio').style.display = 'flex';
+      mostrarToast('Não foi possível gerar o post. Tente descrever o tema com mais detalhes.');
+      btn.disabled = false;
+      return;
     }
-    _tentativaRegenerar = false;
 
-    postAtual = {
-      rede: vozAtual, redeName: r.label, badge: r.badge, cal: r.cal,
-      texto, tom, tema,
-      midia: midiaAtual ? { ...midiaAtual } : null,
-      data: document.getElementById('input-data').value || '',
-      status: 'rascunho',
-      aprovacao: false, emailAprovacao: '',
-      empresa: perfil.nome,
-      criadoEm: new Date().toISOString(),
-    };
-
-    // Ocultar vazio
-    var _vz = document.getElementById('resultado-vazio'); _vz.classList.add('hidden'); _vz.style.display = 'none';
-
-    // Mostrar mídia ANTES do texto
+    // Mostrar mídia (compartilhada entre todas as redes)
     if (midiaAtual) {
       document.getElementById('resultado-midia-inner').innerHTML = midiaAtual.tipo === 'video'
         ? `<video src="${midiaAtual.dataUrl}" controls style="width:100%;max-height:200px;display:block"></video>`
@@ -1623,23 +1644,229 @@ async function gerarPost() {
       document.getElementById('resultado-midia').style.display = 'none';
     }
 
-    // Mostrar texto e barra
-    var redesNomes = Array.from(vozSelecionadas).map(k => REDES[k].label).join(', ');
-    document.getElementById('resultado-meta').innerHTML = `<strong>${perfil.nome}</strong> · ${redesNomes} · tom ${TOM_MAP[tom]}`;
-    document.getElementById('resultado-texto').textContent = texto;
-    document.getElementById('resultado-texto').style.display = 'block';
-    document.getElementById('resultado-barra').style.display = 'flex';
-    var _ba = document.getElementById('btn-aprov'); if(_ba) _ba.style.display = 'none';
+    renderizarResultado(tema, tom);
 
   } catch(err) {
     clearInterval(interval);
     document.getElementById('loading').style.display = 'none';
-    console.error('ERRO gerarPost:', err, err && err.message, err && err.stack);
-    var _vz = document.getElementById('resultado-vazio'); _vz.classList.remove('hidden'); _vz.style.display = 'flex';
+    console.error('ERRO gerarPost:', err);
+    var _vz2 = document.getElementById('resultado-vazio'); _vz2.classList.remove('hidden'); _vz2.style.display = 'flex';
     mostrarToast('Erro ao gerar. Tente novamente.');
   }
 
   btn.disabled = false;
+}
+
+// Gera o texto para uma rede específica. Retorna {texto, redeName, badge, cal} ou null em falha.
+async function gerarParaRede(key, tema, tom, isRetry) {
+  const r = REDES[key] || REDES.linkedin;
+  const usarImagem = midiaAtual && midiaAtual.tipo === 'imagem' && !isRetry;
+  const userPrompt = usarImagem
+    ? `Use a imagem acima apenas como inspiração visual de cores, cenário e atmosfera — sem identificar ou descrever pessoas. Tema do post: ${tema}\nTom: ${TOM_MAP[tom]}\n\nEscreva o post completo, pronto para publicação.`
+    : `Tema: ${tema}\nTom: ${TOM_MAP[tom]}${midiaAtual && midiaAtual.tipo === 'video' ? '\n(Um vídeo acompanha este post)' : ''}\n\nEscreva o post completo, pronto para publicação.`;
+
+  var msgContent;
+  if (usarImagem && midiaAtual.dataUrl) {
+    var matches = midiaAtual.dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+    if (matches) {
+      msgContent = [
+        { type: 'image', source: { type: 'base64', media_type: matches[1], data: matches[2] } },
+        { type: 'text', text: userPrompt }
+      ];
+    } else {
+      msgContent = userPrompt;
+    }
+  } else {
+    msgContent = userPrompt;
+  }
+
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        system: buildSystemPara(key),
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: msgContent }]
+      })
+    });
+
+    const data = await res.json();
+    const texto = data.content?.map(b => b.text || '').join('') || '';
+    if (!texto) return null;
+
+    if (contemMetaComentario(texto)) {
+      if (!isRetry) {
+        // Tenta novamente sem a imagem
+        return await gerarParaRede(key, tema, tom, true);
+      }
+      return null;
+    }
+
+    return { texto, redeName: r.label, badge: r.badge, cal: r.cal, rede: key };
+  } catch(e) {
+    console.error('Erro ao gerar para', key, e);
+    return null;
+  }
+}
+
+function buildSystemPara(key) {
+  const vozAnterior = vozAtual;
+  vozAtual = key;
+  const sys = buildSystem();
+  vozAtual = vozAnterior;
+  return sys;
+}
+
+// Renderiza a área de resultado — com abas se houver 2+ redes, sem abas se houver só 1
+function renderizarResultado(tema, tom) {
+  const chaves = Object.keys(resultadosPorRede);
+  const abasEl = document.getElementById('resultado-abas');
+  const paineisEl = document.getElementById('resultado-abas-paineis');
+  const textoSimplesEl = document.getElementById('resultado-texto');
+
+  if (chaves.length <= 1) {
+    // Modo simples — sem abas, como já funcionava
+    abasEl.style.display = 'none';
+    abasEl.innerHTML = '';
+    paineisEl.innerHTML = '';
+
+    const key = chaves[0];
+    const r = resultadosPorRede[key];
+    if (!r) return;
+
+    postAtual = {
+      rede: key, redeName: r.redeName, badge: r.badge, cal: r.cal,
+      texto: r.texto, tom, tema,
+      midia: midiaAtual ? { ...midiaAtual } : null,
+      data: document.getElementById('input-data').value || '',
+      status: 'rascunho', aprovacao: false, emailAprovacao: '',
+      empresa: perfil.nome, criadoEm: new Date().toISOString(),
+    };
+
+    document.getElementById('resultado-meta').innerHTML = `<strong>${perfil.nome}</strong> · ${r.redeName} · tom ${TOM_MAP[tom]}`;
+    textoSimplesEl.textContent = r.texto;
+    textoSimplesEl.style.display = 'block';
+    document.getElementById('resultado-barra').style.display = 'flex';
+    var _ba = document.getElementById('btn-aprov'); if(_ba) _ba.style.display = 'none';
+
+  } else {
+    // Modo abas — múltiplas redes
+    textoSimplesEl.style.display = 'none';
+    textoSimplesEl.textContent = '';
+    document.getElementById('resultado-barra').style.display = 'none';
+
+    abasEl.style.display = 'flex';
+    abasEl.innerHTML = chaves.map((key, i) =>
+      `<button class="aba-btn${i===0?' on':''}" data-key="${key}" onclick="trocarAba('${key}')">${resultadosPorRede[key].redeName}</button>`
+    ).join('');
+
+    paineisEl.innerHTML = chaves.map((key, i) => {
+      const r = resultadosPorRede[key];
+      return `
+      <div class="aba-painel${i===0?' on':''}" id="aba-painel-${key}">
+        <div class="aba-acoes">
+          <span style="font-size:11px;color:var(--text3)">tom ${TOM_MAP[tom]}</span>
+          <div class="aba-acoes-btns">
+            <button class="btn2 btn2-sm" onclick="copiarAba('${key}')">Copiar</button>
+            <button class="btn2 btn2-sm" onclick="editarAba('${key}')" id="btn-editar-${key}">Editar</button>
+            <button class="btn" style="font-size:12px;padding:6px 12px" onclick="salvarAba('${key}')">Salvar</button>
+          </div>
+        </div>
+        <div class="aba-texto" id="aba-texto-${key}">${r.texto}</div>
+      </div>`;
+    }).join('') + `
+      <div style="padding:14px 20px;border-top:1px solid var(--border);background:var(--bg2);display:flex;justify-content:flex-end">
+        <button class="btn" onclick="salvarTodasAbas()">Salvar todas (${chaves.length})</button>
+      </div>`;
+
+    abaAtiva = chaves[0];
+  }
+}
+
+function trocarAba(key) {
+  abaAtiva = key;
+  document.querySelectorAll('.aba-btn').forEach(b => b.classList.toggle('on', b.dataset.key === key));
+  document.querySelectorAll('.aba-painel').forEach(p => p.classList.toggle('on', p.id === 'aba-painel-' + key));
+}
+
+function copiarAba(key) {
+  const el = document.getElementById('aba-texto-' + key);
+  copiarTextoSeguro(el.textContent);
+}
+
+function editarAba(key) {
+  const el = document.getElementById('aba-texto-' + key);
+  const btn = document.getElementById('btn-editar-' + key);
+  const editando = el.getAttribute('contenteditable') === 'true';
+
+  if (editando) {
+    el.removeAttribute('contenteditable');
+    resultadosPorRede[key].texto = el.textContent;
+    btn.textContent = 'Editar';
+    mostrarToast('Texto atualizado.');
+  } else {
+    el.setAttribute('contenteditable', 'true');
+    el.focus();
+    btn.textContent = 'Concluir edição';
+  }
+}
+
+function salvarAba(key) {
+  const r = resultadosPorRede[key];
+  if (!r) return;
+  const elTexto = document.getElementById('aba-texto-' + key);
+  const textoFinal = elTexto ? elTexto.textContent : r.texto;
+  const dataAtual = document.getElementById('input-data').value || '';
+
+  const jaExiste = bancoPosts.some(p => p.texto === textoFinal && p.rede === key && (p.data||'') === (dataAtual||''));
+  if (jaExiste) { mostrarToast('Este post já está salvo para essa rede e data.'); return; }
+
+  const post = {
+    rede: key, redeName: r.redeName, badge: r.badge, cal: r.cal,
+    texto: textoFinal,
+    midia: midiaAtual ? { ...midiaAtual } : null,
+    data: dataAtual, status: 'rascunho',
+    aprovacao: false, emailAprovacao: '',
+    empresa: perfil.nome,
+    id: Date.now() + Math.random(),
+    criadoEm: new Date().toISOString(),
+  };
+
+  bancoPosts.unshift(post);
+  if (post.data) adicionarPostAoCal(post.data, post);
+
+  var midiaStr = null;
+  try { midiaStr = post.midia ? JSON.stringify(post.midia) : null; } catch(e) {}
+  dbCall('insert', 'posts', {
+    user_id: CURRENT_USER_ID,
+    conteudo: post.texto || '', rede: post.rede || '',
+    status: post.status || 'rascunho', empresa: perfil.nome || '',
+    badge: post.badge || 'badge-green', midia: midiaStr,
+    data_publicacao: post.data || null,
+  }).then(function(res) {
+    if(res && Array.isArray(res) && res[0]) {
+      post._cloudId = res[0].id;
+      post.id = 'cloud_' + res[0].id;
+    }
+  });
+
+  salvarStorage();
+  renderBanco();
+  mostrarToast(`Post de ${r.redeName} salvo!`);
+
+  // Marca visualmente a aba como salva
+  const tabBtn = document.querySelector(`.aba-btn[data-key="${key}"]`);
+  if (tabBtn && !tabBtn.querySelector('.aba-status')) {
+    tabBtn.innerHTML += '<span class="aba-status"></span>';
+  }
+}
+
+function salvarTodasAbas() {
+  Object.keys(resultadosPorRede).forEach(key => salvarAba(key));
+  vozSelecionadas = new Set();
+  vozAtual = null;
+  document.querySelectorAll('.voz-btn').forEach(b => b.classList.remove('on'));
 }
 
 function regenerar() {
@@ -1669,7 +1896,6 @@ function salvarPost() {
       var textoIgual = p.texto === postAtual.texto;
       var redeIgual = p.rede === key;
       var dataIgual = (p.data || '') === (dataAtual || '');
-      console.log('CHECK:', redeIgual, textoIgual, dataIgual, '|', p.data, 'vs', dataAtual);
       return textoIgual && redeIgual && dataIgual;
     });
     if (jaExiste) { duplicatas++; return; }
@@ -2379,7 +2605,12 @@ function limparGerador() {
   document.getElementById('resultado-texto').style.display = 'none';
   document.getElementById('resultado-barra').style.display = 'none';
   document.getElementById('resultado-midia').style.display = 'none';
+  document.getElementById('resultado-abas').style.display = 'none';
+  document.getElementById('resultado-abas').innerHTML = '';
+  document.getElementById('resultado-abas-paineis').innerHTML = '';
   postAtual = null;
+  resultadosPorRede = {};
+  abaAtiva = null;
   // Reset rede selection — nenhuma selecionada
   vozSelecionadas = new Set();
   vozAtual = null;
