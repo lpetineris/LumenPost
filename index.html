@@ -639,6 +639,25 @@ main { max-width: 920px; margin: 0 auto; padding: 32px 20px 80px; }
 }
 .cal-add:hover { border-color: var(--g); color: var(--g); }
 
+/* Espaços vazios da programação — visual tracejado/hachurado por rede */
+.cal-espaco {
+  border-radius: 4px;
+  margin-bottom: 2px;
+  cursor: pointer;
+  padding: 3px 4px;
+  font-size: 9px;
+  font-weight: 700;
+  text-align: center;
+  border: 1.5px dashed;
+  transition: all .15s;
+  opacity: 0.85;
+}
+.cal-espaco:hover { opacity: 1; transform: scale(1.03); }
+.cal-espaco.linkedin { border-color: #1D4ED8; color: #1D4ED8; background: #EFF6FF; }
+.cal-espaco.instagram { border-color: #7C3AED; color: #7C3AED; background: #FDF4FF; }
+.cal-espaco.tiktok { border-color: #15803D; color: #15803D; background: #F0FDF4; }
+.cal-espaco.generico { border-color: var(--g); color: var(--g); background: var(--g-l); }
+
 .legenda { display: flex; gap: 16px; margin-top: 12px; flex-wrap: wrap; }
 .legenda-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text3); }
 .legenda-cor { width: 10px; height: 10px; border-radius: 2px; }
@@ -939,12 +958,22 @@ main { max-width: 920px; margin: 0 auto; padding: 32px 20px 80px; }
         <button onclick="navMes(1)">›</button>
       </div>
     </div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+      <div id="programacao-ativa-info" style="font-size:12px;color:var(--text3)"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <select id="select-programacao" onchange="trocarProgramacaoAtiva(this.value)" style="font-family:'Poppins',sans-serif;font-size:12px;padding:7px 10px;border-radius:var(--rs);border:1.5px solid var(--border);background:var(--bg);color:var(--text);display:none"></select>
+        <button class="btn2 btn2-sm" onclick="abrirModalProgramacao()">📋 Criar programação</button>
+      </div>
+    </div>
+
     <div class="cal-grid" id="cal-grid"></div>
     <div class="legenda">
       <div class="legenda-item"><div class="legenda-cor" style="background:#BFDBFE"></div>LinkedIn</div>
       <div class="legenda-item"><div class="legenda-cor" style="background:#E9D5FF"></div>Instagram</div>
       <div class="legenda-item"><div class="legenda-cor" style="background:#BBF7D0"></div>TikTok</div>
       <div class="legenda-item"><div class="legenda-cor" style="background:#D8F3DC"></div>Outros</div>
+      <div class="legenda-item"><div class="legenda-cor" style="background:repeating-linear-gradient(45deg,#E5E5E0,#E5E5E0 3px,#F5F5F0 3px,#F5F5F0 6px)"></div>Espaço da programação</div>
     </div>
   </div>
 
@@ -1134,6 +1163,82 @@ main { max-width: 920px; margin: 0 auto; padding: 32px 20px 80px; }
 
 </main>
 
+<!-- Modal Criar Programação -->
+<div class="modal-overlay" id="modal-prog-overlay">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-hdr">
+      <h3 id="modal-prog-titulo">Criar programação</h3>
+      <button class="modal-close" onclick="fecharModalProgramacao()">×</button>
+    </div>
+
+    <!-- Etapa 1: escolher tipo -->
+    <div id="prog-etapa-tipo" style="padding:24px">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:20px;line-height:1.6">
+        Como você quer montar a programação de posts?
+      </p>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <button class="btn2" style="text-align:left;padding:16px;justify-content:flex-start" onclick="iniciarProgramacao('automatica')">
+          <div style="font-weight:700;font-size:13px;margin-bottom:3px">✦ Automática</div>
+          <div style="font-size:12px;color:var(--text3);font-weight:400">A IA decide quantos posts, quais redes e em quais datas, com base no perfil da empresa.</div>
+        </button>
+        <button class="btn2" style="text-align:left;padding:16px;justify-content:flex-start" onclick="iniciarProgramacao('manual')">
+          <div style="font-weight:700;font-size:13px;margin-bottom:3px">✎ Manual</div>
+          <div style="font-size:12px;color:var(--text3);font-weight:400">Você define você mesmo as datas e redes de cada espaço.</div>
+        </button>
+      </div>
+    </div>
+
+    <!-- Etapa 2: formulário automática -->
+    <div id="prog-etapa-auto" style="padding:24px;display:none">
+      <div class="field">
+        <label>Nome da programação</label>
+        <input type="text" id="prog-nome-auto" placeholder="Ex: Julho 2026">
+      </div>
+      <div class="field">
+        <label>Data de início</label>
+        <input type="date" id="prog-data-inicio">
+      </div>
+      <div class="field">
+        <label>Data de término</label>
+        <input type="date" id="prog-data-fim">
+      </div>
+      <div class="field">
+        <label>Redes sociais</label>
+        <div class="redes-check" id="prog-redes-check" style="display:flex;flex-wrap:wrap;gap:6px">
+          <!-- preenchido via JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Etapa 2: formulário manual -->
+    <div id="prog-etapa-manual" style="padding:24px;display:none">
+      <div class="field">
+        <label>Nome da programação</label>
+        <input type="text" id="prog-nome-manual" placeholder="Ex: Lançamento Produto X">
+      </div>
+      <p style="font-size:12px;color:var(--text3);margin-bottom:8px">Adicione os espaços um a um — data e rede:</p>
+      <div style="display:flex;gap:6px;margin-bottom:10px">
+        <input type="date" id="prog-manual-data" style="flex:1">
+        <select id="prog-manual-rede" style="flex:1;font-family:'Poppins',sans-serif;font-size:13px;padding:9px 12px;border-radius:var(--rs);border:1px solid var(--border)">
+          <option value="linkedin">💼 LinkedIn</option>
+          <option value="instagram">📸 Instagram</option>
+          <option value="tiktok">🎵 TikTok</option>
+          <option value="facebook">👥 Facebook</option>
+          <option value="youtube">▶️ YouTube</option>
+          <option value="pinterest">📌 Pinterest</option>
+        </select>
+        <button class="btn2 btn2-sm" onclick="adicionarEspacoManual()">+ Adicionar</button>
+      </div>
+      <div id="prog-manual-lista" style="display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto"></div>
+    </div>
+
+    <div class="modal-footer" id="prog-footer-tipo" style="display:none">
+      <button class="btn2" onclick="voltarEtapaTipo()">Voltar</button>
+      <button class="btn" id="prog-btn-confirmar" onclick="confirmarProgramacao()">Criar programação</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal Alterar Data -->
 <div class="modal-overlay" id="modal-data-overlay">
   <div class="modal" style="max-width:380px">
@@ -1262,11 +1367,19 @@ async function loadFromCloud() {
     }
   } catch(e) {}
 
-  // Load calPosts
+  // Load calPosts + programações
   try {
     const cp = await dbCall('select_perfil', 'perfis_post', {user_id: CURRENT_USER_ID});
-    if(cp && cp.length > 0 && cp[0].cal_posts) {
-      try { calPosts = JSON.parse(cp[0].cal_posts); } catch(e) { calPosts = {}; }
+    if(cp && cp.length > 0) {
+      if (cp[0].cal_posts) {
+        try { calPosts = JSON.parse(cp[0].cal_posts); } catch(e) { calPosts = {}; }
+      }
+      if (cp[0].programacoes) {
+        try { programacoes = JSON.parse(cp[0].programacoes); } catch(e) { programacoes = []; }
+      }
+      if (cp[0].programacao_ativa) {
+        programacaoAtivaId = cp[0].programacao_ativa;
+      }
     }
   } catch(e) {}
 
@@ -1306,9 +1419,30 @@ let filtroAtual = 'todos';
 let modalPostIdx = null;
 let perfil = {};
 
+// ── PROGRAMAÇÕES ──────────────────────────────────────────────────────
+// Lista de programações salvas. Cada uma: { id, nome, espacos: { 'YYYY-MM-DD': ['linkedin','instagram'] } }
+let programacoes = [];
+let programacaoAtivaId = null;
+
+function getProgramacaoAtiva() {
+  return programacoes.find(p => p.id === programacaoAtivaId) || null;
+}
+
+function salvarProgramacoes() {
+  try { localStorage.setItem('lp_programacoes', JSON.stringify(programacoes)); } catch(e) {}
+  try { localStorage.setItem('lp_programacao_ativa', programacaoAtivaId || ''); } catch(e) {}
+  dbCall('upsert', 'perfis_post', {
+    id: CURRENT_USER_ID,
+    programacoes: JSON.stringify(programacoes),
+    programacao_ativa: programacaoAtivaId || '',
+  });
+}
+
 try { bancoPosts = JSON.parse(localStorage.getItem('lp_posts') || '[]'); } catch(e) { bancoPosts = []; }
 try { calPosts = JSON.parse(localStorage.getItem('lp_cal') || '{}'); } catch(e) { calPosts = {}; }
 try { perfil = JSON.parse(localStorage.getItem('lp_perfil') || '{}'); } catch(e) { perfil = {}; }
+try { programacoes = JSON.parse(localStorage.getItem('lp_programacoes') || '[]'); } catch(e) { programacoes = []; }
+try { programacaoAtivaId = localStorage.getItem('lp_programacao_ativa') || null; } catch(e) { programacaoAtivaId = null; }
 // Load from cloud when user_id arrives via postMessage
 // (triggered in loadFromCloud called from message listener)
 
@@ -2226,6 +2360,7 @@ function copiarModal() {
 
 // ── CALENDÁRIO ────────────────────────────────────────────────────────
 function renderCal() {
+  atualizarSeletorProgramacao();
   const grid = document.getElementById('cal-grid');
   const hoje = new Date();
   const nomeMes = MESES[mesAtual];
@@ -2286,6 +2421,26 @@ function renderCal() {
       item.appendChild(lbl);
       el.appendChild(item);
     });
+
+    // Espaços vazios da programação ativa — só mostra se ainda não há post real naquela rede+data
+    const prog = getProgramacaoAtiva();
+    if (prog && prog.espacos && prog.espacos[chave]) {
+      const redesJaPreenchidas = (calPosts[chave] || []).map(p => {
+        const entry = Object.entries(REDES).find(([k,v]) => v.label === p.redeName);
+        return entry ? entry[0] : null;
+      });
+      prog.espacos[chave].forEach(redeKey => {
+        if (redesJaPreenchidas.includes(redeKey)) return; // já foi preenchido — não mostra espaço vazio
+        const r = REDES[redeKey];
+        if (!r) return;
+        const espaco = document.createElement('div');
+        espaco.className = `cal-espaco ${r.cal || 'generico'}`;
+        espaco.textContent = r.emoji + ' ' + r.label;
+        espaco.title = 'Clique para criar o post de ' + r.label;
+        espaco.onclick = () => preencherEspacoProgramacao(chave, redeKey);
+        el.appendChild(espaco);
+      });
+    }
 
     const btnAdd = document.createElement('button');
     btnAdd.className = 'cal-add';
@@ -2453,6 +2608,264 @@ function navMes(dir) {
   if (mesAtual > 11) { mesAtual = 0; anoAtual++; }
   if (mesAtual < 0) { mesAtual = 11; anoAtual--; }
   renderCal();
+}
+
+// ── PROGRAMAÇÃO ───────────────────────────────────────────────────────
+
+function atualizarSeletorProgramacao() {
+  const sel = document.getElementById('select-programacao');
+  const info = document.getElementById('programacao-ativa-info');
+  if (!sel || !info) return;
+
+  if (programacoes.length === 0) {
+    sel.style.display = 'none';
+    info.textContent = 'Nenhuma programação ativa.';
+    return;
+  }
+
+  sel.style.display = 'inline-block';
+  sel.innerHTML = programacoes.map(p =>
+    `<option value="${p.id}"${p.id === programacaoAtivaId ? ' selected' : ''}>${p.nome}</option>`
+  ).join('');
+
+  const ativa = getProgramacaoAtiva();
+  if (ativa) {
+    const total = Object.values(ativa.espacos || {}).reduce((acc, arr) => acc + arr.length, 0);
+    info.textContent = total > 0
+      ? `"${ativa.nome}" — ${total} espaço(s) aguardando conteúdo`
+      : `"${ativa.nome}" — todos os espaços preenchidos! 🎉`;
+  } else {
+    info.textContent = '';
+  }
+}
+
+function trocarProgramacaoAtiva(id) {
+  programacaoAtivaId = id;
+  salvarProgramacoes();
+  renderCal();
+}
+
+// Abre o modal de criação — se já existe uma programação ativa com espaços
+// vazios, pede confirmação antes de permitir criar uma nova (mas não bloqueia,
+// pois agora suportamos múltiplas programações salvas).
+function abrirModalProgramacao() {
+  document.getElementById('prog-etapa-tipo').style.display = 'block';
+  document.getElementById('prog-etapa-auto').style.display = 'none';
+  document.getElementById('prog-etapa-manual').style.display = 'none';
+  document.getElementById('prog-footer-tipo').style.display = 'none';
+  document.getElementById('modal-prog-titulo').textContent = 'Criar programação';
+  document.getElementById('modal-prog-overlay').classList.add('open');
+}
+
+function fecharModalProgramacao() {
+  document.getElementById('modal-prog-overlay').classList.remove('open');
+  _espacosManualTemp = [];
+}
+
+let _tipoProgramacaoAtual = null;
+let _espacosManualTemp = [];
+
+function iniciarProgramacao(tipo) {
+  _tipoProgramacaoAtual = tipo;
+  document.getElementById('prog-etapa-tipo').style.display = 'none';
+  document.getElementById('prog-footer-tipo').style.display = 'flex';
+
+  if (tipo === 'automatica') {
+    document.getElementById('modal-prog-titulo').textContent = 'Programação automática';
+    document.getElementById('prog-etapa-auto').style.display = 'block';
+    document.getElementById('prog-etapa-manual').style.display = 'none';
+    document.getElementById('prog-btn-confirmar').textContent = 'Gerar programação';
+
+    // Popular checkboxes de redes
+    const cont = document.getElementById('prog-redes-check');
+    cont.innerHTML = Object.entries(REDES).map(([key, r]) =>
+      `<label style="display:flex;align-items:center;gap:6px;font-size:12px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--rs);cursor:pointer">
+        <input type="checkbox" value="${key}" checked style="accent-color:var(--g)"> ${r.emoji} ${r.label}
+      </label>`
+    ).join('');
+
+    // Datas padrão: hoje até +30 dias
+    const hoje = new Date();
+    const em30 = new Date(); em30.setDate(em30.getDate() + 30);
+    document.getElementById('prog-data-inicio').value = hoje.toISOString().split('T')[0];
+    document.getElementById('prog-data-fim').value = em30.toISOString().split('T')[0];
+    document.getElementById('prog-nome-auto').value = `Programação ${MESES[mesAtual]} ${anoAtual}`;
+
+  } else {
+    document.getElementById('modal-prog-titulo').textContent = 'Programação manual';
+    document.getElementById('prog-etapa-auto').style.display = 'none';
+    document.getElementById('prog-etapa-manual').style.display = 'block';
+    document.getElementById('prog-btn-confirmar').textContent = 'Criar programação';
+    document.getElementById('prog-nome-manual').value = '';
+    _espacosManualTemp = [];
+    renderEspacosManualTemp();
+  }
+}
+
+function voltarEtapaTipo() {
+  document.getElementById('prog-etapa-tipo').style.display = 'block';
+  document.getElementById('prog-etapa-auto').style.display = 'none';
+  document.getElementById('prog-etapa-manual').style.display = 'none';
+  document.getElementById('prog-footer-tipo').style.display = 'none';
+  document.getElementById('modal-prog-titulo').textContent = 'Criar programação';
+}
+
+function adicionarEspacoManual() {
+  const data = document.getElementById('prog-manual-data').value;
+  const rede = document.getElementById('prog-manual-rede').value;
+  if (!data) { mostrarToast('Escolha uma data.'); return; }
+
+  const jaExiste = _espacosManualTemp.some(e => e.data === data && e.rede === rede);
+  if (jaExiste) { mostrarToast('Esse espaço já foi adicionado.'); return; }
+
+  _espacosManualTemp.push({ data, rede });
+  renderEspacosManualTemp();
+}
+
+function removerEspacoManual(idx) {
+  _espacosManualTemp.splice(idx, 1);
+  renderEspacosManualTemp();
+}
+
+function renderEspacosManualTemp() {
+  const cont = document.getElementById('prog-manual-lista');
+  if (_espacosManualTemp.length === 0) {
+    cont.innerHTML = '<p style="font-size:12px;color:var(--text3);text-align:center;padding:12px">Nenhum espaço adicionado ainda.</p>';
+    return;
+  }
+  cont.innerHTML = _espacosManualTemp.map((e, i) => {
+    const r = REDES[e.rede];
+    const dataFmt = new Date(e.data + 'T12:00:00').toLocaleDateString('pt-BR');
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--bg2);border-radius:var(--rs);font-size:12px">
+      <span>${r.emoji} ${r.label} · ${dataFmt}</span>
+      <button onclick="removerEspacoManual(${i})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px">×</button>
+    </div>`;
+  }).join('');
+}
+
+async function confirmarProgramacao() {
+  if (_tipoProgramacaoAtual === 'automatica') {
+    await confirmarProgramacaoAutomatica();
+  } else {
+    confirmarProgramacaoManual();
+  }
+}
+
+function confirmarProgramacaoManual() {
+  const nome = document.getElementById('prog-nome-manual').value.trim();
+  if (!nome) { mostrarToast('Dê um nome para a programação.'); return; }
+  if (_espacosManualTemp.length === 0) { mostrarToast('Adicione pelo menos um espaço.'); return; }
+
+  const espacos = {};
+  _espacosManualTemp.forEach(e => {
+    if (!espacos[e.data]) espacos[e.data] = [];
+    espacos[e.data].push(e.rede);
+  });
+
+  const nova = { id: 'prog_' + Date.now(), nome, espacos };
+  programacoes.push(nova);
+  programacaoAtivaId = nova.id;
+  salvarProgramacoes();
+
+  fecharModalProgramacao();
+  renderCal();
+  mostrarToast(`Programação "${nome}" criada com ${_espacosManualTemp.length} espaço(s)!`);
+}
+
+async function confirmarProgramacaoAutomatica() {
+  const nome = document.getElementById('prog-nome-auto').value.trim();
+  const dataInicio = document.getElementById('prog-data-inicio').value;
+  const dataFim = document.getElementById('prog-data-fim').value;
+  const redesEscolhidas = Array.from(document.querySelectorAll('#prog-redes-check input:checked')).map(c => c.value);
+
+  if (!nome) { mostrarToast('Dê um nome para a programação.'); return; }
+  if (!dataInicio || !dataFim) { mostrarToast('Defina o período da programação.'); return; }
+  if (redesEscolhidas.length === 0) { mostrarToast('Selecione pelo menos uma rede social.'); return; }
+  if (!perfil.nome) { mostrarToast('Configure o Perfil da Empresa primeiro.'); return; }
+
+  const btn = document.getElementById('prog-btn-confirmar');
+  btn.disabled = true;
+  btn.textContent = 'Gerando com IA...';
+
+  try {
+    const diasTotais = Math.max(1, Math.round((new Date(dataFim) - new Date(dataInicio)) / 86400000) + 1);
+
+    const prompt = `Você é uma estrategista de conteúdo. Crie um calendário editorial para a empresa "${perfil.nome}" (${perfil.historia || ''}).
+
+Período: de ${dataInicio} a ${dataFim} (${diasTotais} dias).
+Redes sociais disponíveis: ${redesEscolhidas.map(k => REDES[k].label).join(', ')}.
+
+Decida quantos posts fazem sentido nesse período e como distribuí-los entre as redes e datas, considerando uma frequência saudável e realista (não exagere — geralmente 2-4 posts por semana por rede é adequado para uma pequena/média empresa).
+
+Responda APENAS em JSON válido, sem texto antes ou depois, no formato exato:
+{"espacos": [{"data": "YYYY-MM-DD", "rede": "linkedin"}, {"data": "YYYY-MM-DD", "rede": "instagram"}]}
+
+Use apenas estas chaves de rede: ${redesEscolhidas.join(', ')}. Todas as datas devem estar dentro do período informado.`;
+
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        system: 'Você responde apenas com JSON válido, sem nenhum texto adicional, comentário ou explicação.',
+        max_tokens: 2000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    const data = await res.json();
+    let texto = data.content?.map(b => b.text || '').join('') || '';
+    texto = texto.replace(/```json|```/g, '').trim();
+
+    let parsed;
+    try { parsed = JSON.parse(texto); } catch(e) {
+      throw new Error('A IA retornou um formato inesperado. Tente novamente.');
+    }
+
+    if (!parsed.espacos || !Array.isArray(parsed.espacos) || parsed.espacos.length === 0) {
+      throw new Error('Nenhum espaço foi gerado. Tente novamente ou ajuste o período.');
+    }
+
+    const espacos = {};
+    parsed.espacos.forEach(e => {
+      if (!e.data || !e.rede || !REDES[e.rede]) return;
+      if (!espacos[e.data]) espacos[e.data] = [];
+      if (!espacos[e.data].includes(e.rede)) espacos[e.data].push(e.rede);
+    });
+
+    const nova = { id: 'prog_' + Date.now(), nome, espacos };
+    programacoes.push(nova);
+    programacaoAtivaId = nova.id;
+    salvarProgramacoes();
+
+    const totalEspacos = Object.values(espacos).reduce((acc, arr) => acc + arr.length, 0);
+    fecharModalProgramacao();
+    renderCal();
+    mostrarToast(`Programação "${nome}" criada com ${totalEspacos} posts sugeridos!`);
+
+  } catch(err) {
+    console.error('Erro ao gerar programação automática:', err);
+    mostrarToast(err.message || 'Erro ao gerar programação. Tente novamente.');
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Gerar programação';
+}
+
+// Chamado ao clicar num espaço vazio do calendário — abre o gerador
+// já configurado com a rede e a data daquele espaço.
+function preencherEspacoProgramacao(data, redeKey) {
+  goTab('gerar');
+  setTimeout(() => {
+    // Seleciona apenas essa rede
+    vozSelecionadas = new Set([redeKey]);
+    vozAtual = redeKey;
+    document.querySelectorAll('.voz-btn').forEach(b => {
+      b.classList.toggle('on', b.id === 'voz-' + redeKey);
+    });
+    document.getElementById('input-data').value = data;
+    document.getElementById('input-tema').focus();
+    mostrarToast(`Espaço de ${REDES[redeKey].label} em ${new Date(data+'T12:00:00').toLocaleDateString('pt-BR')} selecionado. Descreva o tema e gere o post!`);
+  }, 150);
 }
 
 // ── AJUDA ─────────────────────────────────────────────────────────────
