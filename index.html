@@ -1339,7 +1339,7 @@ main { max-width: 920px; margin: 0 auto; padding: 32px 20px 80px; }
       <button class="modal-close" onclick="document.getElementById('modal-exportar-overlay').classList.remove('open')">×</button>
     </div>
     <div style="padding:20px 24px">
-      <p style="font-size:13px;color:var(--text2);margin-bottom:12px">Copie o conteúdo abaixo e salve num arquivo <strong>.json</strong> no seu computador.</p>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:12px">Copie o conteúdo abaixo e cole num documento de texto para guardar seus posts.</p>
       <textarea id="exportar-conteudo" readonly style="width:100%;height:260px;font-family:monospace;font-size:11px;padding:12px;border:1px solid var(--border);border-radius:var(--rs);background:var(--bg2);color:var(--text);resize:none"></textarea>
     </div>
     <div class="modal-footer">
@@ -3451,21 +3451,28 @@ function esvaziarLixeira() {
 function exportarPosts() {
   if (bancoPosts.length === 0) { mostrarToast('Nenhum post no banco para exportar.'); return; }
 
-  const dados = bancoPosts.map(function(p) {
-    return {
-      rede: p.redeName || p.rede,
-      texto: p.texto,
-      status: p.status,
-      data: p.data || '',
-      hora: p.hora || '',
-      empresa: p.empresa,
-      criadoEm: p.criadoEm,
-      temImagem: !!(p.midia && p.midia.dataUrl),
-    };
+  const sl = { rascunho: 'Rascunho', aguardando: 'Aguardando aprovação', aprovado: 'Aprovado', publicado: 'Publicado' };
+  const linhas = [];
+  linhas.push('LUMEN POST — BACKUP DE POSTS');
+  linhas.push('Exportado em: ' + new Date().toLocaleDateString('pt-BR') + ' às ' + new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'}));
+  linhas.push('Total de posts: ' + bancoPosts.length);
+  linhas.push('');
+  linhas.push('═'.repeat(60));
+
+  bancoPosts.forEach(function(p, i) {
+    linhas.push('');
+    linhas.push('POST ' + (i + 1));
+    linhas.push('Rede: ' + (p.redeName || p.rede || '—'));
+    linhas.push('Status: ' + (sl[p.status] || p.status || '—'));
+    if (p.data) linhas.push('Data: ' + new Date(p.data + 'T12:00:00').toLocaleDateString('pt-BR') + (p.hora ? ' às ' + p.hora : ''));
+    if (p.midia) linhas.push('Mídia: ' + (p.midia.tipo === 'video' ? 'Vídeo' : 'Imagem') + (p.midia.nome ? ' (' + p.midia.nome + ')' : ''));
+    linhas.push('');
+    linhas.push(p.texto || '');
+    linhas.push('');
+    linhas.push('─'.repeat(60));
   });
 
-  const json = JSON.stringify(dados, null, 2);
-  document.getElementById('exportar-conteudo').value = json;
+  document.getElementById('exportar-conteudo').value = linhas.join('\n');
   document.getElementById('modal-exportar-overlay').classList.add('open');
 }
 
