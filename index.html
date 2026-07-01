@@ -2623,7 +2623,7 @@ function renderCal() {
 
       const lbl = document.createElement('div');
       lbl.className = `cal-lbl ${p.cal || 'generico'}${!p.midia ? ' sem-thumb' : ''}`;
-      lbl.textContent = p.redeName || 'Post';
+      lbl.innerHTML = `<span>${p.redeName || 'Post'}</span>${p.hora ? `<span style="font-size:9px;opacity:.8;margin-left:4px">${p.hora}</span>` : ''}`;
       item.appendChild(lbl);
       el.appendChild(item);
     });
@@ -2764,6 +2764,7 @@ function adicionarPostAoCal(dataStr, post) {
   calPosts[dataStr].push({
     redeName: post.redeName, cal: post.cal,
     midia: post.midia || null, texto: post.texto, empresa: post.empresa,
+    hora: post.hora || null,
     programacaoId: post.programacaoId || ID_PROGRAMACAO_FIXA
   });
   try { localStorage.setItem('lp_cal', JSON.stringify(calPosts)); } catch(e) {}
