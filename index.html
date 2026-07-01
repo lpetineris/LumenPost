@@ -2239,20 +2239,20 @@ function renderBanco() {
       ? `<div class="post-thumb-video">▶</div>`
       : `<div class="post-thumb"><img src="${p.midia.dataUrl}"></div>`;
 
-    // Indicador de expiração de imagem
+    // Indicador de expiração do post
     let expiraHtml = '';
-    if (p.midia && p.data) {
+    if (p.data) {
       const agora = new Date(); agora.setHours(0,0,0,0);
       const dataPost = new Date(p.data + 'T00:00:00');
       const diasAteExpirar = 5 - Math.floor((agora - dataPost) / 86400000);
       if (diasAteExpirar <= 0) {
-        expiraHtml = `<div style="font-size:11px;padding:3px 14px;background:#FEF2F2;color:#DC2626;border-bottom:1px solid #FECACA">🕐 Imagem expirada</div>`;
+        expiraHtml = `<div style="font-size:11px;padding:3px 14px;background:#FEF2F2;color:#DC2626;border-bottom:1px solid #FECACA">🕐 Post expira hoje — será removido automaticamente</div>`;
       } else if (diasAteExpirar === 1) {
-        expiraHtml = `<div style="font-size:11px;padding:3px 14px;background:#FEF2F2;color:#DC2626;border-bottom:1px solid #FECACA">🕐 Imagem expira hoje</div>`;
+        expiraHtml = `<div style="font-size:11px;padding:3px 14px;background:#FEF2F2;color:#DC2626;border-bottom:1px solid #FECACA">🕐 Post expira amanhã</div>`;
       } else if (diasAteExpirar <= 3) {
-        expiraHtml = `<div style="font-size:11px;padding:3px 14px;background:#FFFBEB;color:#D97706;border-bottom:1px solid #FDE68A">🕐 Imagem expira em ${diasAteExpirar} dias</div>`;
+        expiraHtml = `<div style="font-size:11px;padding:3px 14px;background:#FFFBEB;color:#D97706;border-bottom:1px solid #FDE68A">🕐 Post expira em ${diasAteExpirar} dias</div>`;
       } else {
-        expiraHtml = `<div style="font-size:11px;padding:3px 14px;color:var(--text3);border-bottom:1px solid var(--border)">🕐 Imagem expira em ${diasAteExpirar} dias</div>`;
+        expiraHtml = `<div style="font-size:11px;padding:3px 14px;color:var(--text3);border-bottom:1px solid var(--border)">🕐 Expira em ${diasAteExpirar} dias</div>`;
       }
     }
 
@@ -3165,54 +3165,54 @@ function mostrarToast(msg) {
 }
 
 // ── SINCRONIZAR CALENDÁRIO ───────────────────────────────────────────
-// ── EXPIRAÇÃO DE IMAGENS ──────────────────────────────────────────────
-// Remove a mídia (imagem/vídeo) de posts cuja data de postagem já passou
-// há mais de 5 dias. O texto e os demais dados do post são preservados.
-// Roda automaticamente a cada carregamento da ferramenta.
+// ── EXPIRAÇÃO DE POSTS ────────────────────────────────────────────────
+// Remove posts cuja data de postagem já passou há mais de 5 dias.
+// O post inteiro é excluído do banco e do calendário.
+// Posts sem data de postagem nunca expiram.
 function expirarImagensAntigas() {
   const DIAS_EXPIRACAO = 5;
   const agora = new Date();
   agora.setHours(0, 0, 0, 0);
   let alterou = false;
+  const idsParaExcluir = [];
 
   bancoPosts.forEach(function(post) {
-    if (!post.midia || !post.data) return; // sem mídia ou sem data — não expira
+    if (!post.data) return; // sem data — nunca expira
 
     const dataPost = new Date(post.data + 'T00:00:00');
     const diasPassados = Math.floor((agora - dataPost) / 86400000);
 
     if (diasPassados >= DIAS_EXPIRACAO) {
-      post.midia = null;
-      alterou = true;
+      idsParaExcluir.push(post.id);
 
-      // Atualizar no Supabase — zera o campo midia
+      // Excluir do Supabase
       if (post._cloudId) {
-        dbCall('update', 'posts', {
-          id: post._cloudId,
-          user_id: CURRENT_USER_ID,
-          midia: null,
-        });
+        dbCall('delete', 'posts', { id: post._cloudId, user_id: CURRENT_USER_ID });
       }
 
-      // Também remover a mídia da entrada correspondente no calPosts
+      // Remover do calendário
       if (calPosts[post.data]) {
-        calPosts[post.data].forEach(function(cp) {
-          if (cp.texto === post.texto && cp.redeName === post.redeName) {
-            cp.midia = null;
-          }
+        calPosts[post.data] = calPosts[post.data].filter(function(cp) {
+          return !(cp.texto === post.texto && cp.redeName === post.redeName);
         });
+        if (calPosts[post.data].length === 0) delete calPosts[post.data];
       }
+
+      alterou = true;
     }
   });
 
   if (alterou) {
+    // Remover do array local
+    bancoPosts = bancoPosts.filter(function(p) { return !idsParaExcluir.includes(p.id); });
     salvarStorage();
     try { localStorage.setItem('lp_cal', JSON.stringify(calPosts)); } catch(e) {}
     dbCall('upsert', 'perfis_post', {
       id: CURRENT_USER_ID,
       cal_posts: JSON.stringify(calPosts),
     });
-    console.log('[Lumen Post] Imagens expiradas removidas.');
+    renderBanco();
+    console.log('[Lumen Post] ' + idsParaExcluir.length + ' post(s) expirado(s) removido(s).');
   }
 }
 
