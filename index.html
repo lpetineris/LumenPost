@@ -3433,7 +3433,6 @@ function esvaziarLixeira() {
 function exportarPosts() {
   if (bancoPosts.length === 0) { mostrarToast('Nenhum post no banco para exportar.'); return; }
 
-  // Exporta sem o base64 das imagens (muito pesado)
   const dados = bancoPosts.map(function(p) {
     return {
       rede: p.redeName || p.rede,
@@ -3448,16 +3447,33 @@ function exportarPosts() {
   });
 
   const json = JSON.stringify(dados, null, 2);
-  const blob = new Blob([json], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `lumen-post-backup-${new Date().toISOString().split('T')[0]}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  mostrarToast(`${dados.length} post(s) exportados com sucesso.`);
+
+  // Tenta download direto primeiro
+  try {
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `lumen-post-backup-${new Date().toISOString().split('T')[0]}.json`;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function() {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 1000);
+    mostrarToast(dados.length + ' post(s) exportados com sucesso.');
+  } catch(e) {
+    // Fallback: abre numa nova aba para o usuário copiar/salvar manualmente
+    var win = window.open('', '_blank');
+    if (win) {
+      win.document.write('<pre style="font-family:monospace;font-size:12px;padding:20px">' + json.replace(/</g,'&lt;') + '</pre>');
+      win.document.title = 'Lumen Post — Backup';
+      mostrarToast('Aberto em nova aba — copie e salve como .json');
+    } else {
+      mostrarToast('Não foi possível exportar. Tente em aba anônima.');
+    }
+  }
 }
 
 // ── AJUDA ─────────────────────────────────────────────────────────────
