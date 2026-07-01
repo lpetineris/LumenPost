@@ -925,9 +925,12 @@ main { max-width: 920px; margin: 0 auto; padding: 32px 20px 80px; }
 
   <!-- ── BANCO ── -->
   <div class="tab" id="banco">
-    <div class="hero">
-      <h1>Banco de Posts</h1>
-      <p>Todos os rascunhos gerados, organizados por status.</p>
+    <div class="hero" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
+      <div>
+        <h1>Banco de Posts</h1>
+        <p>Todos os rascunhos gerados, organizados por status.</p>
+      </div>
+      <button class="btn2 btn2-sm" style="margin-top:8px" onclick="exportarPosts()">⬇ Exportar posts</button>
     </div>
     <div class="filtros">
       <button class="filtro on" onclick="filtrar('todos', this)">Todos</button>
@@ -946,6 +949,15 @@ main { max-width: 920px; margin: 0 auto; padding: 32px 20px 80px; }
       <button class="filtro" data-rede="pinterest" onclick="filtrarRede('pinterest', this)">Pinterest</button>
     </div>
     <div id="banco-lista"></div>
+
+    <!-- Lixeira -->
+    <div id="lixeira-section" style="margin-top:32px;display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div style="font-size:13px;font-weight:700;color:var(--text2)">🗑 Lixeira <span id="lixeira-count" style="font-weight:400;color:var(--text3)"></span></div>
+        <button class="btnd btn2-sm" onclick="esvaziarLixeira()">Esvaziar lixeira</button>
+      </div>
+      <div id="lixeira-lista"></div>
+    </div>
   </div>
 
   <!-- ── CALENDÁRIO ── -->
@@ -1504,6 +1516,7 @@ async function loadFromCloud() {
 
 let bancoPosts = [];
 let calPosts = {};
+let lixeira = []; // posts excluídos aguardando remoção permanente (7 dias)
 let mesAtual = new Date().getMonth();
 let anoAtual = new Date().getFullYear();
 let filtroAtual = 'todos';
@@ -1636,6 +1649,9 @@ try { calPosts = JSON.parse(localStorage.getItem('lp_cal') || '{}'); } catch(e) 
 try { perfil = JSON.parse(localStorage.getItem('lp_perfil') || '{}'); } catch(e) { perfil = {}; }
 try { programacoes = JSON.parse(localStorage.getItem('lp_programacoes') || '[]'); } catch(e) { programacoes = []; }
 try { programacaoAtivaId = localStorage.getItem('lp_programacao_ativa') || null; } catch(e) { programacaoAtivaId = null; }
+try { lixeira = JSON.parse(localStorage.getItem('lp_lixeira') || '[]'); } catch(e) { lixeira = []; }
+// Limpar lixeira: remover posts com mais de 7 dias
+lixeira = lixeira.filter(function(p) { return p.excluidoEm && (Date.now() - p.excluidoEm) < 7 * 86400000; });
 migrarEstruturaEspacos();
 migrarCalPostsSemProgramacao();
 // Load from cloud when user_id arrives via postMessage
@@ -2357,6 +2373,7 @@ function renderBanco() {
   if (filtroRedeAtual !== 'todas') {
     filtrados = filtrados.filter(p => p.rede === filtroRedeAtual);
   }
+  renderLixeira();
 
   if (!filtrados.length) {
     lista.innerHTML = `<div class="vazio"><div class="ico">✦</div><p>Nenhum post encontrado com os filtros selecionados.<br>Gere um rascunho e salve no banco.</p></div>`;
@@ -2455,18 +2472,24 @@ function mudarStatus(idx, s) {
 }
 
 function excluirPost(idx) {
+  if (!confirm('Excluir este post? Ele ficará na lixeira por 7 dias e pode ser restaurado.')) return;
   var post = bancoPosts[idx];
-  if(post._cloudId) {
+
+  // Mover para lixeira em vez de excluir permanentemente
+  post.excluidoEm = Date.now();
+  lixeira.push(post);
+  try { localStorage.setItem('lp_lixeira', JSON.stringify(lixeira)); } catch(e) {}
+
+  // Remover do Supabase
+  if (post._cloudId) {
     dbCall('delete', 'posts', {id: post._cloudId, user_id: CURRENT_USER_ID});
   }
-  // Remove do calendário apenas na data específica deste post
-  if (post.data) {
-    removerPostDoCal(post, post.data);
-  }
+  // Remove do calendário
+  if (post.data) removerPostDoCal(post, post.data);
   bancoPosts.splice(idx, 1);
   salvarStorage();
   renderBanco();
-  mostrarToast('Post excluído.');
+  mostrarToast('Post movido para a lixeira. Você tem 7 dias para restaurar.');
 }
 
 // Remove post do calendário
@@ -3321,6 +3344,122 @@ function limparComentario() {
   _ultimoComentario = null;
 }
 
+// ── LIXEIRA ───────────────────────────────────────────────────────────
+
+function salvarLixeira() {
+  try { localStorage.setItem('lp_lixeira', JSON.stringify(lixeira)); } catch(e) {}
+}
+
+function renderLixeira() {
+  const section = document.getElementById('lixeira-section');
+  const lista = document.getElementById('lixeira-lista');
+  const count = document.getElementById('lixeira-count');
+  if (!section || !lista) return;
+
+  if (lixeira.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+
+  section.style.display = 'block';
+  count.textContent = `(${lixeira.length} post${lixeira.length > 1 ? 's' : ''})`;
+
+  lista.innerHTML = lixeira.map((p, i) => {
+    const diasRestantes = Math.max(0, 7 - Math.floor((Date.now() - p.excluidoEm) / 86400000));
+    const dataFmt = p.data ? new Date(p.data + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
+    return `
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--rs);padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:2px">${p.redeName || 'Post'} · ${dataFmt}</div>
+        <div style="font-size:12px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${(p.texto || '').substring(0, 80)}...</div>
+        <div style="font-size:11px;color:var(--red);margin-top:3px">Expira da lixeira em ${diasRestantes} dia${diasRestantes !== 1 ? 's' : ''}</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        <button class="btng btn2-sm" onclick="restaurarPost(${i})">↩ Restaurar</button>
+        <button class="btnd btn2-sm" onclick="excluirDaLixeira(${i})">Excluir</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function restaurarPost(idx) {
+  var post = lixeira[idx];
+  if (!post) return;
+  delete post.excluidoEm;
+  bancoPosts.unshift(post);
+  if (post.data) adicionarPostAoCal(post.data, post);
+  lixeira.splice(idx, 1);
+  salvarLixeira();
+  salvarStorage();
+  // Re-inserir no Supabase
+  var midiaStr = null;
+  try { midiaStr = post.midia ? JSON.stringify(post.midia) : null; } catch(e) {}
+  dbCall('insert', 'posts', {
+    user_id: CURRENT_USER_ID,
+    conteudo: post.texto || '', rede: post.rede || '',
+    status: post.status || 'rascunho', empresa: perfil.nome || '',
+    badge: post.badge || 'badge-green', midia: midiaStr,
+    data_publicacao: post.data || null,
+  }).then(function(r) {
+    if (r && Array.isArray(r) && r[0]) {
+      post._cloudId = r[0].id;
+      post.id = 'cloud_' + r[0].id;
+    }
+  });
+  renderBanco();
+  renderLixeira();
+  renderCal();
+  mostrarToast('Post restaurado com sucesso!');
+}
+
+function excluirDaLixeira(idx) {
+  if (!confirm('Excluir permanentemente? Esta ação não pode ser desfeita.')) return;
+  lixeira.splice(idx, 1);
+  salvarLixeira();
+  renderLixeira();
+  mostrarToast('Post excluído permanentemente.');
+}
+
+function esvaziarLixeira() {
+  if (!confirm(`Excluir permanentemente ${lixeira.length} post(s) da lixeira? Esta ação não pode ser desfeita.`)) return;
+  lixeira = [];
+  salvarLixeira();
+  renderLixeira();
+  mostrarToast('Lixeira esvaziada.');
+}
+
+// ── EXPORTAR ──────────────────────────────────────────────────────────
+
+function exportarPosts() {
+  if (bancoPosts.length === 0) { mostrarToast('Nenhum post no banco para exportar.'); return; }
+
+  // Exporta sem o base64 das imagens (muito pesado)
+  const dados = bancoPosts.map(function(p) {
+    return {
+      rede: p.redeName || p.rede,
+      texto: p.texto,
+      status: p.status,
+      data: p.data || '',
+      hora: p.hora || '',
+      empresa: p.empresa,
+      criadoEm: p.criadoEm,
+      temImagem: !!(p.midia && p.midia.dataUrl),
+    };
+  });
+
+  const json = JSON.stringify(dados, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `lumen-post-backup-${new Date().toISOString().split('T')[0]}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  mostrarToast(`${dados.length} post(s) exportados com sucesso.`);
+}
+
 // ── AJUDA ─────────────────────────────────────────────────────────────
 function toggleFaq(btn) {
   const answer = btn.nextElementSibling;
@@ -3553,6 +3692,8 @@ function expirarImagensAntigas() {
     const diasPassados = Math.floor((agora - dataPost) / 86400000);
 
     if (diasPassados >= DIAS_EXPIRACAO) {
+      // Só expira posts já publicados — rascunhos e aprovados não são excluídos automaticamente
+      if (post.status !== 'publicado') return;
       idsParaExcluir.push(post.id);
 
       // Excluir do Supabase
